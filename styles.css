@@ -370,20 +370,20 @@ nav.tabs button[aria-current="page"] .ic { transform: scale(1.08); }
 .lock.leaving > * { opacity: 0; transform: translateY(-8px); }
 
 /* Visual-Hügel am rechten Rand */
-.vhill { position: fixed; z-index: 25; right: 0; top: 0; width: 44px; height: 96px; margin-top: -48px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; transition: opacity .25s var(--ease); }
-.vhill::before { content: ""; position: absolute; right: 0; top: 50%; width: 12px; height: 58px; margin-top: -29px; border-radius: 14px 0 0 14px;
-  background: linear-gradient(90deg, #26262d, #131317); box-shadow: inset 1px 0 0 rgba(255, 255, 255, .14), -2px 0 14px rgba(0, 0, 0, .6);
-  transition: width .3s var(--ease), height .3s var(--ease), margin-top .3s var(--ease); }
-.vhill.press::before { width: 19px; height: 72px; margin-top: -36px; }
+.vhill { position: fixed; z-index: 25; right: 0; top: 0; width: 44px; height: 110px; margin-top: -55px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; transition: opacity .25s var(--ease); }
+.vhill svg { position: absolute; right: 0; top: 50%; width: 16px; height: 80px; margin-top: -40px; overflow: visible; transform-origin: 100% 50%; transition: transform .3s var(--ease); filter: drop-shadow(-2px 0 6px rgba(0, 0, 0, .7)); }
+.vhill.press svg { transform: scale(1.25); }
 .vhill.away { opacity: 0; pointer-events: none; }
 .vhill[hidden] { display: none; }
 .vscrim { position: fixed; inset: 0; z-index: 44; background: rgba(0, 0, 0, .72); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .35s var(--ease), visibility 0s .35s; }
 .vscrim.on { opacity: 1; visibility: visible; transition-delay: 0s; }
 .vtrack { position: fixed; inset: 0; z-index: 45; pointer-events: none; opacity: 0; transition: opacity .25s var(--ease); }
 .vtrack.on { opacity: 1; }
-.vcard { position: absolute; right: 0; top: 0; width: 190px; font-size: 10px; transform-origin: 100% 50%; will-change: transform; border-radius: 1.1em;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, .65); transition: box-shadow .25s var(--ease); }
-.vcard .cardflat { width: 100%; }
-.vcard.lit { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .85), 0 14px 44px rgba(0, 0, 0, .7); }
+.vcard { position: absolute; right: 0; top: 0; width: 78px; height: 38px; display: flex; align-items: center; gap: 7px; padding-left: 13px; border-radius: 19px; background: #000;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .13), 0 8px 22px rgba(0, 0, 0, .7); transform-origin: 100% 50%; will-change: transform; transition: box-shadow .25s var(--ease); }
+.vcard .vic { display: grid; place-items: center; color: var(--violet); }
+.vcard .ic { width: 19px; height: 19px; }
+.vcard b { font-size: 14px; font-weight: 650; letter-spacing: .02em; color: #f5f5f7; font-variant-numeric: tabular-nums; }
+.vcard.lit { box-shadow: inset 0 0 0 1.5px var(--violet), 0 0 24px rgba(166, 107, 255, .45), 0 8px 22px rgba(0, 0, 0, .7); }
 .vlabel { position: absolute; right: 0; top: 0; font-size: 14px; font-weight: 600; letter-spacing: -.01em; color: #f5f5f7; white-space: nowrap; will-change: transform, opacity; }
-@media (prefers-reduced-motion: reduce) { .vhill::before, .vhill, .vscrim, .vtrack { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .vhill svg, .vhill, .vscrim, .vtrack { transition: none; } }

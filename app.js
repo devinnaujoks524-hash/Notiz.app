@@ -256,7 +256,7 @@ function renderMain() {
     </div>
     <div class="vscrim" id="vscrim"></div>
     <div class="vtrack" id="vtrack" aria-hidden="true"></div>
-    <div class="vhill" id="vhill" aria-hidden="true"></div>
+    <div class="vhill" id="vhill" aria-hidden="true"><svg viewBox="0 0 16 80"><defs><linearGradient id="hg" x1="1" x2="0"><stop offset="0" stop-color="#16161a"/><stop offset="1" stop-color="#2a2a31"/></linearGradient></defs><path d="M16 0C9 0 3 22 3 40S9 80 16 80Z" fill="url(#hg)"/><path d="M16 0C9 0 3 22 3 40S9 80 16 80" fill="none" stroke="rgba(166,107,255,.45)" stroke-width="1"/></svg></div>
     <button class="fab" id="fab" aria-label="Hinzufügen">${ic('plus')}</button>`;
   bindHill();
   enter = true;
@@ -520,7 +520,7 @@ function openViewer(id) {
 
 function openCardForm(id) {
   const orig = data.cards.find(x => x.id === id);
-  const c = orig ? { ...orig } : { id: uid(), type: 'bank', theme: 'sunset', name: '', holder: '', number: '', iban: '', exp: '', network: 'Visa', member: '', note: '' };
+  const c = orig ? { ...orig } : { id: uid(), type: 'bank', theme: 'sunset', name: '', tag: '', holder: '', number: '', iban: '', exp: '', network: 'Visa', member: '', note: '' };
   const el = openSheet(`
     <div class="sheet-top">
       <button class="iconbtn" data-close aria-label="Abbrechen">${ic('x')}</button>
@@ -539,10 +539,10 @@ function openCardForm(id) {
     <p class="err" id="ferr" role="alert"></p>`, { label: c.name || 'Karte' , cls: 'form-sheet' });
 
   const F = {
-    bank: [['name', 'Bank / Name der Karte', 'text', 'z. B. Sparkasse'], ['holder', 'Inhaber', 'text', 'Name auf der Karte'],
+    bank: [['name', 'Bank / Name der Karte', 'text', 'z. B. Sparkasse'], ['tag', 'Kürzel (2–3 Zeichen, für den Hügel)', 'text', 'z. B. 42', 3], ['holder', 'Inhaber', 'text', 'Name auf der Karte'],
            ['number', 'Kartennummer', 'numeric', '1234 5678 9012 3456', 23], ['iban', 'IBAN', 'text', 'DE00 0000 0000 0000 0000 00', 42],
            ['exp', 'Gültig bis', 'numeric', 'MM/JJ', 5], ['network', 'Netzwerk', 'select'], ['note', 'Notiz (Rückseite)', 'area', 'z. B. Sperr-Notruf 116 116']],
-    member: [['name', 'Geschäft', 'text', 'z. B. Fitnessstudio'], ['holder', 'Inhaber', 'text', 'Dein Name'],
+    member: [['name', 'Geschäft', 'text', 'z. B. Fitnessstudio'], ['tag', 'Kürzel (2–3 Zeichen, für den Hügel)', 'text', 'z. B. FIT', 3], ['holder', 'Inhaber', 'text', 'Dein Name'],
              ['member', 'Mitgliedsnummer', 'text', ''], ['note', 'Notiz (Rückseite)', 'area', '']],
   };
   const renderForm = () => {
@@ -562,6 +562,7 @@ function openCardForm(id) {
     const t = e.target;
     if (t.name === 'number') t.value = t.value.replace(/\D/g, '').slice(0, 19).replace(/(.{4})/g, '$1 ').trim();
     if (t.name === 'iban') t.value = t.value.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 34).replace(/(.{4})/g, '$1 ').trim();
+    if (t.name === 'tag') t.value = t.value.toUpperCase().slice(0, 3);
     if (t.name === 'exp') { let v = t.value.replace(/\D/g, '').slice(0, 4); if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2); t.value = v; }
     c[t.name] = t.value; renderPrev();
   });
@@ -708,9 +709,11 @@ function openQuickTodo() {
 
 /* ---------- Visual-Hügel (rechter Rand der Home-Ansicht) ---------- */
 // Ein kleiner Hügel sitzt am rechten Rand. Gedrückt halten, dann mit dem Finger hoch/runter fahren:
-// Die Karten schauen als Hügel aus dem Rand, die unter dem Finger wächst. Nach links ziehen = rausziehen.
-const HILL = { w: 190, rest: 16, peek: 124, hold: 230, pull: 64, commit: 150 };
+// Jede Karte ist ein kleines schwarzes Pill mit lila Karten-Symbol und Kürzel. Das unter dem Finger wächst.
+// Nach links ziehen = rausziehen, loslassen öffnet die Karte.
+const HILL = { w: 78, rest: 11, peek: 72, hold: 230, pull: 64, commit: 150, ph: 38 };
 let hillY = null;
+const tagOf = c => String(c.tag || c.name || '').trim().slice(0, 3).toUpperCase();
 
 function bindHill() {
   const hill = $('#vhill'), track = $('#vtrack'), scrim = $('#vscrim');
@@ -726,12 +729,10 @@ function bindHill() {
     const cards = data.cards;
     if (!cards.length) { stop(); s = null; toast('Noch keine Karten'); return; }
     const top = 110, bottom = innerHeight - 150, n = cards.length;
-    const gap = Math.min(78, (bottom - top) / n), y0 = top + ((bottom - top) - gap * n) / 2;
-    track.innerHTML = cards.map(c => `<div class="vcard">${cardMarkup(c)}</div>`).join('') + '<div class="vlabel"></div>';
+    const gap = Math.min(54, (bottom - top) / n), y0 = top + ((bottom - top) - gap * n) / 2;
+    track.innerHTML = cards.map(c => `<div class="vcard"><span class="vic">${ic('card')}</span><b>${esc(tagOf(c))}</b></div>`).join('') + '<div class="vlabel"></div>';
     Object.assign(s, { on: true, n, gap, y0, els: [...track.querySelectorAll('.vcard')], label: track.querySelector('.vlabel'),
       m: new Array(n).fill(0), px: 0, active: -1, locked: false, past: false });
-    s.els.forEach(el => { el.style.top = '0px'; });
-    s.h = s.els[0].offsetHeight;
     track.classList.add('on'); scrim.classList.add('on'); hill.classList.add('away');
     setMenu(false); buzz(10);
     s.raf = requestAnimationFrame(frame);
@@ -744,37 +745,33 @@ function bindHill() {
     const near = s.locked ? s.active : Math.round(f);
     if (near !== s.active && !s.locked) { s.active = near; buzz(4); }
     const k = still ? 1 : .24;
-    // Ziehen: wie weit liegt der Finger links vom Rand
-    const pullPx = Math.max(0, W - s.fx);
-    s.px += (pullPx - s.px) * (still ? 1 : .5);
+    s.px += (Math.max(0, W - s.fx) - s.px) * (still ? 1 : .5);
     els.forEach((el, i) => {
       const d = Math.abs(i - (s.locked ? s.active : f));
-      const target = d >= 1.7 ? 0 : (Math.cos(d / 1.7 * Math.PI) + 1) / 2;
+      const target = d >= 1.6 ? 0 : (Math.cos(d / 1.6 * Math.PI) + 1) / 2;
       s.m[i] += (target - s.m[i]) * k;
-      const m = s.m[i], sc = .74 + .3 * m;
+      const m = s.m[i], sc = .82 + .26 * m, held = s.locked && i === s.active;
       let peek = HILL.rest + HILL.peek * m;
-      if (s.locked && i === s.active) { peek = Math.max(peek, s.px + 28); }
-      const tx = HILL.w * sc - peek, y = y0 + i * gap + gap / 2 - s.h / 2;
-      el.style.transform = `translate(${tx.toFixed(1)}px, ${y.toFixed(1)}px) scale(${(s.locked && i === s.active ? 1.06 : sc).toFixed(3)})`;
+      if (held) peek = Math.max(peek, s.px + 30);
+      const tx = HILL.w * sc - peek, y = y0 + i * gap + gap / 2 - HILL.ph / 2;
+      el.style.transform = `translate(${tx.toFixed(1)}px, ${y.toFixed(1)}px) scale(${(held ? 1.12 : sc).toFixed(3)})`;
       el.style.zIndex = Math.round(10 + m * 20);
       el.classList.toggle('lit', i === s.active && s.past);
     });
-    const a = s.active, am = s.m[a] ?? 0;
+    const a = s.active;
     if (a >= 0) {
-      const c = data.cards[a];
-      s.label.textContent = c.name || 'Karte';
-      const peek = HILL.rest + HILL.peek * am;
-      s.label.style.transform = `translate(${-(s.locked ? s.px + 44 : peek + 16)}px, ${(y0 + a * gap + gap / 2 - 11).toFixed(1)}px)`;
+      const am = s.m[a] ?? 0;
+      s.label.textContent = data.cards[a].name || 'Karte';
+      s.label.style.transform = `translate(${-(HILL.rest + HILL.peek * am + 14)}px, ${(y0 + a * gap + gap / 2 - 10).toFixed(1)}px)`;
       s.label.style.opacity = s.locked ? 0 : Math.min(1, am * 1.4);
     }
     s.raf = requestAnimationFrame(frame);
   }
 
   function finish(open) {
-    const { els, active } = s, id = open && active >= 0 ? data.cards[active].id : null;
+    const id = open && s.active >= 0 ? data.cards[s.active].id : null;
     stop();
-    track.classList.remove('on'); scrim.classList.remove('on');
-    hill.classList.remove('away');
+    track.classList.remove('on'); scrim.classList.remove('on'); hill.classList.remove('away');
     placeHill(s.fy);
     s = null;
     setTimeout(() => { if (!s) track.innerHTML = ''; }, 320);
