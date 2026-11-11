@@ -1,4 +1,4 @@
-# Notiz
+# Lumen
 
 Private Notizen, To-dos und 3D-Karten – komplett schwarz, knallige Farben, verschlüsselt auf deinem Handy.
 

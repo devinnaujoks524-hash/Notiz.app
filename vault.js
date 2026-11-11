@@ -126,8 +126,8 @@ export const Vault = {
 
   async enrollBio() {
     const cred = await navigator.credentials.create({ publicKey: {
-      challenge: rand(32), rp: { name: 'Notiz' },
-      user: { id: rand(16), name: 'Notiz', displayName: 'Notiz' },
+      challenge: rand(32), rp: { name: 'Lumen' },
+      user: { id: rand(16), name: 'Lumen', displayName: 'Lumen' },
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
       authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'preferred', userVerification: 'required' },
       timeout: 60000, extensions: { prf: {} } } });

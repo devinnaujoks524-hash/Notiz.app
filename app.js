@@ -111,7 +111,7 @@ async function boot() {
   }
   try { navigator.storage?.persist?.(); } catch {}
   if (!window.crypto?.subtle) {
-    app.innerHTML = `<div class="lock"><div class="logo"></div><h1>Notiz</h1><p class="sub">Die App braucht eine sichere Verbindung (https). Öffne sie über deinen GitHub-Pages-Link.</p></div>`;
+    app.innerHTML = `<div class="lock"><div class="logo"></div><h1>Lumen</h1><p class="sub">Die App braucht eine sichere Verbindung (https). Öffne sie über deinen GitHub-Pages-Link.</p></div>`;
     return;
   }
   bioOk = await Vault.bioAvailable();
@@ -121,7 +121,7 @@ async function boot() {
 function renderSetup() {
   app.innerHTML = `<main class="lock">
     <div class="logo" aria-hidden="true"></div>
-    <h1>Notiz</h1>
+    <h1>Lumen</h1>
     <p class="sub">Leg einen Code fest. Damit wird alles auf diesem Handy verschlüsselt.</p>
     <form class="lockform" id="f">
       <label class="field"><span>Code (mind. 6 Zeichen)</span><input id="c1" type="password" inputmode="numeric" autocomplete="new-password" minlength="6" required></label>
@@ -153,7 +153,7 @@ function renderLock(msg = '') {
   closeAllSheets();
   app.innerHTML = `<main class="lock">
     <div class="logo" aria-hidden="true"></div>
-    <h1>Notiz</h1>
+    <h1>Lumen</h1>
     <p class="sub">${msg || 'Gesperrt'}</p>
     <form class="lockform" id="f">
       <label class="field"><span>Code</span><input id="c" type="password" inputmode="numeric" autocomplete="current-password" required></label>
@@ -542,7 +542,7 @@ function openSettings() {
       <label class="row"><div><b>Backup importieren</b><small>Ersetzt alle Daten auf diesem Handy</small></div><input type="file" id="imp" accept=".json,application/json" hidden></label>
     </div>
     <div class="group"><button class="row danger" id="wipe"><div><b>Alle Daten löschen</b></div></button></div>
-    <p class="foot">Notiz 1.0 · Alles bleibt auf diesem Gerät, verschlüsselt mit AES-256.</p>`, { label: 'Einstellungen' });
+    <p class="foot">Lumen 1.0 · Alles bleibt auf diesem Gerät, verschlüsselt mit AES-256.</p>`, { label: 'Einstellungen' });
 
   $('#bioSw', el).addEventListener('click', async e => {
     const sw = e.currentTarget;
@@ -562,9 +562,9 @@ function openSettings() {
   $('#exp', el).addEventListener('click', async () => {
     await flush();
     const blob = new Blob([Vault.exportText()], { type: 'application/json' });
-    const name = `notiz-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    const name = `lumen-backup-${new Date().toISOString().slice(0, 10)}.json`;
     const file = new File([blob], name, { type: 'application/json' });
-    if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: 'Notiz-Backup' }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+    if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ files: [file], title: 'Lumen-Backup' }); return; } catch (e) { if (e.name === 'AbortError') return; } }
     const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast('Backup gespeichert');
   });
@@ -589,7 +589,7 @@ async function importFile(e) {
   const f = e.target.files?.[0]; e.target.value = ''; if (!f) return;
   if (Vault.rec && !(await dialog({ title: 'Backup importieren?', body: 'Alle aktuellen Daten auf diesem Handy werden ersetzt. Danach entsperrst du mit dem Code, der beim Backup galt.', ok: 'Importieren', danger: true }))) return;
   try { await Vault.importText(await f.text()); data = null; renderLock('Backup geladen – entsperre mit dem Code des Backups'); }
-  catch { toast('Das ist keine gültige Notiz-Backup-Datei'); }
+  catch { toast('Das ist keine gültige Lumen-Backup-Datei'); }
 }
 
 /* ---------- Plus-Menü ---------- */
