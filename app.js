@@ -256,7 +256,7 @@ function renderMain() {
     </div>
     <div class="vscrim" id="vscrim"></div>
     <div class="vtrack" id="vtrack" aria-hidden="true"></div>
-    <div class="vhill" id="vhill" aria-hidden="true"><svg viewBox="0 0 9 44"><defs><linearGradient id="hg" x1="1" x2="0"><stop offset="0" stop-color="#16161a"/><stop offset="1" stop-color="#2a2a31"/></linearGradient></defs><path d="M9 0C5 0 1.5 12 1.5 22S5 44 9 44Z" fill="url(#hg)"/><path d="M9 0C5 0 1.5 12 1.5 22S5 44 9 44" fill="none" stroke="rgba(166,107,255,.4)" stroke-width=".8"/></svg></div>
+    <div class="vhill" id="vhill" aria-hidden="true"><svg viewBox="0 0 9 44"><defs><linearGradient id="hg" x1="1" x2="0"><stop offset="0" stop-color="#000"/><stop offset="1" stop-color="#000"/></linearGradient></defs><path d="M9 0C5 0 1.5 12 1.5 22S5 44 9 44Z" fill="url(#hg)"/></svg></div>
     <button class="fab" id="fab" aria-label="Hinzufügen">${ic('plus')}</button>`;
   bindHill();
   enter = true;
@@ -719,9 +719,9 @@ const tagOf = c => String(c.tag || c.name || '').trim().slice(0, 3).toUpperCase(
 function bindHill() {
   const hill = $('#vhill'), track = $('#vtrack'), scrim = $('#vscrim');
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const clampY = y => Math.max(120, Math.min(innerHeight - 210, y));
+  const clampY = y => Math.max(100, Math.min(innerHeight - 210, y));
   const placeHill = y => { hillY = clampY(y); hill.style.transform = `translateY(${hillY}px)`; };
-  placeHill(hillY ?? innerHeight * .42);
+  placeHill(hillY ?? innerHeight * .28);
 
   let press = null; // Drücken auf dem Hügel, bevor die Leiste offen ist
   let o = null;     // offene Leiste
@@ -733,8 +733,9 @@ function bindHill() {
     const gap = Math.min(54, (bottom - top) / n), y0 = top + ((bottom - top) - gap * n) / 2;
     track.innerHTML = cards.map(c => `<div class="vcard"><span class="vic">${ic('card')}</span><b>${esc(tagOf(c))}</b></div>`).join('') + '<div class="vlabel"></div>';
     o = { n, gap, y0, els: [...track.querySelectorAll('.vcard')], label: track.querySelector('.vlabel'), m: new Array(n).fill(0),
-      px: 0, active: -1, locked: false, past: false, fx, fy, g: gid == null ? null : { id: gid }, tap: null, raf: 0 };
-    track.classList.add('on'); scrim.classList.add('on'); hill.classList.add('away');
+      px: 0, active: -1, locked: false, past: false, fx, fy, g: gid == null ? null : { id: gid }, tap: null, raf: 0,
+      lift: new Array(n).fill(0), hy: hillY };
+    track.classList.add('on'); scrim.classList.add('on'); hill.classList.add('live', 'out');
     setMenu(false); buzz(10);
     o.raf = requestAnimationFrame(frame);
   }
@@ -742,9 +743,9 @@ function bindHill() {
   function closeTrack(openId) {
     if (!o) return;
     cancelAnimationFrame(o.raf);
-    const fy = o.fy; o = null;
-    track.classList.remove('on'); scrim.classList.remove('on'); hill.classList.remove('away', 'press');
-    placeHill(fy);
+    const hy = o.hy; o = null;
+    track.classList.remove('on'); scrim.classList.remove('on'); hill.classList.remove('live', 'out', 'press');
+    placeHill(hy);
     setTimeout(() => { if (!o) track.innerHTML = ''; }, 320);
     if (openId) { buzz(12); openViewer(openId); }
   }
@@ -759,17 +760,25 @@ function bindHill() {
     const k = still ? 1 : .24;
     o.px += (Math.max(0, W - o.fx) - o.px) * (still ? 1 : .5);
     els.forEach((el, i) => {
+      // Nur solange der Finger am Rand ist, wachsen die Karten heraus; danach gehen sie sanft zurück.
       const d = Math.abs(i - (o.locked ? o.active : f));
-      const target = d >= 1.6 ? 0 : (Math.cos(d / 1.6 * Math.PI) + 1) / 2;
+      const target = !o.g || d >= 1.6 ? 0 : (Math.cos(d / 1.6 * Math.PI) + 1) / 2;
       o.m[i] += (target - o.m[i]) * k;
-      const m = o.m[i], sc = .82 + .26 * m, held = o.locked && i === o.active;
-      let peek = HILL.rest + HILL.peek * m;
+      o.lift[i] += ((o.g && i === o.active ? 1 : 0) - o.lift[i]) * (still ? 1 : .2);
+      const m = o.m[i], l = o.lift[i], sc = .82 + .26 * m + .07 * l, held = o.locked && i === o.active;
+      let peek = HILL.rest + HILL.peek * m + 8 * l;
       if (held) peek = Math.max(peek, o.px + 30);
       const tx = HILL.w * sc - peek, y = y0 + i * gap + gap / 2 - HILL.ph / 2;
-      el.style.transform = `translate(${tx.toFixed(1)}px, ${y.toFixed(1)}px) scale(${(held ? 1.12 : sc).toFixed(3)})`;
+      el.style.transform = `translate(${tx.toFixed(1)}px, ${y.toFixed(1)}px) scale(${(held ? 1.14 : sc).toFixed(3)})`;
+      el.style.setProperty('--l', l.toFixed(3));
       el.style.zIndex = Math.round(10 + m * 20);
       el.classList.toggle('lit', i === o.active && o.past);
     });
+    // Der Hügel fährt mit: folgt dem Finger und geht in die gewählte Karte über
+    const aY = y0 + Math.max(0, o.active) * gap + gap / 2;
+    const hTarget = o.locked ? aY : o.g ? Math.max(y0 + gap / 2, Math.min(y0 + n * gap - gap / 2, o.fy)) : o.hy;
+    o.hy += (hTarget - o.hy) * (still ? 1 : .3);
+    hill.style.transform = `translateY(${o.hy.toFixed(1)}px)`;
     const a = o.active;
     if (a >= 0) {
       const am = o.m[a] ?? 0;
