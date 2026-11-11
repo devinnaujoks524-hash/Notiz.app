@@ -115,7 +115,11 @@ async function boot() {
     return;
   }
   bioOk = await Vault.bioAvailable();
-  (await Vault.exists()) ? renderLock() : renderSetup();
+  if (!(await Vault.exists())) return renderSetup();
+  if (!Vault.hasCode) {
+    try { data = Object.assign(empty(), await Vault.autoOpen()); return renderMain(); } catch { /* fällt auf den Sperrbildschirm zurück */ }
+  }
+  renderLock();
 }
 
 function renderSetup() {
@@ -211,6 +215,7 @@ function playUnlock(done) {
 }
 
 async function lockNow() {
+  if (!Vault.hasCode) return;
   await flush();
   Vault.lock(); data = null;
   if (updateReady) return location.reload();
@@ -221,8 +226,9 @@ document.addEventListener('visibilitychange', async () => {
   if (!Vault.unlocked) return;
   if (document.hidden) {
     hiddenAt = Date.now(); await flush();
+    if (!Vault.hasCode) return;
     if ((data?.settings.autolock ?? 60) === 0) lockNow();
-  } else if (Date.now() - hiddenAt > (data?.settings.autolock ?? 60) * 1000) {
+  } else if (Vault.hasCode && Date.now() - hiddenAt > (data?.settings.autolock ?? 60) * 1000) {
     lockNow();
   }
 });
@@ -271,7 +277,7 @@ function renderTab() {
 
 const header = title => `<header class="top"><h1>${title}</h1><div class="hbtns">
   <button class="iconbtn" data-act="settings" aria-label="Einstellungen">${ic('gear')}</button>
-  <button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button></div></header>`;
+  ${Vault.hasCode ? `<button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button>` : ''}</div></header>`;
 
 const fmtDay = ts => new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' }).format(ts);
 
@@ -313,7 +319,7 @@ function viewHome() {
   return `<div class="home${cls}">
     <div class="hometop"><div class="hbtns">
       <button class="iconbtn" data-act="settings" aria-label="Einstellungen">${ic('gear')}</button>
-      <button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button></div></div>
+      ${Vault.hasCode ? `<button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button>` : ''}</div></div>
     <h1 class="hello" id="hHello">${p.hello}</h1>
     <p class="hdate" id="hDate">${p.date}</p>
     <time class="htime" id="hTime">${p.time}</time>
@@ -553,6 +559,10 @@ function openSettings() {
   const el = openSheet(`
     <div class="sheet-top"><button class="iconbtn" data-close aria-label="Zurück">${ic('back')}</button><h2 class="grow center">Einstellungen</h2><span class="iconbtn ghost"></span></div>
     <div class="group">
+      <div class="row"><div><b>Code-Sperre</b><small id="codeTxt">${Vault.hasCode ? 'App ist mit Code geschützt' : 'Aus – die App öffnet sich von selbst'}</small></div>
+        <button class="switch" id="codeSw" role="switch" aria-checked="${Vault.hasCode}" aria-label="Code-Sperre"></button></div>
+    </div>
+    <div class="group" id="codeGroup" ${Vault.hasCode ? '' : 'hidden'}>
       <div class="row"><div><b>Fingerabdruck</b><small id="bioTxt">${!bioOk ? 'Auf diesem Gerät nicht verfügbar' : Vault.hasBio ? 'Entsperren per Fingerabdruck ist an' : 'Schneller entsperren'}</small></div>
         <button class="switch" id="bioSw" role="switch" aria-checked="${Vault.hasBio}" aria-label="Fingerabdruck" ${bioOk ? '' : 'disabled'}></button></div>
       <label class="row"><div><b>Automatisch sperren</b><small>Wenn die App im Hintergrund ist</small></div>
@@ -560,12 +570,30 @@ function openSettings() {
       <button class="row" id="chg"><div><b>Code ändern</b></div></button>
     </div>
     <div class="group">
-      <button class="row" id="exp"><div><b>Backup exportieren</b><small>Verschlüsselte Datei – öffnet sich nur mit deinem Code</small></div></button>
+      <button class="row" id="exp"><div><b>Backup exportieren</b><small>Mit Code-Sperre öffnet sich die Datei nur mit deinem Code</small></div></button>
       <label class="row"><div><b>Backup importieren</b><small>Ersetzt alle Daten auf diesem Handy</small></div><input type="file" id="imp" accept=".json,application/json" hidden></label>
     </div>
     <div class="group"><button class="row danger" id="wipe"><div><b>Alle Daten löschen</b></div></button></div>
     <p class="foot">Lumen 1.0 · Alles bleibt auf diesem Gerät, verschlüsselt mit AES-256.</p>`, { label: 'Einstellungen' });
 
+  $('#codeSw', el).addEventListener('click', async e => {
+    const sw = e.currentTarget;
+    if (Vault.hasCode) {
+      const v = await dialog({ title: 'Code-Sperre ausschalten?', body: 'Wenn du den Code deaktivierst, sind deine Daten und Notizen nicht mehr geschützt: Jeder, der dein entsperrtes Handy in die Hand nimmt, kann Lumen öffnen und alles lesen.', fields: [{ name: 'c', label: 'Aktueller Code' }], ok: 'Ausschalten', danger: true });
+      if (!v) return;
+      try { await Vault.disableCode(v.c); } catch { return toast('Code ist falsch'); }
+      toast('Code-Sperre aus');
+    } else {
+      const v = await dialog({ title: 'Code-Sperre einschalten', body: 'Lege einen Code fest. Danach sind deine Daten wieder verschlüsselt.', fields: [{ name: 'a', label: 'Neuer Code (mind. 6)', min: 6 }, { name: 'b', label: 'Code wiederholen', min: 6 }], ok: 'Einschalten' });
+      if (!v) return;
+      if (v.a !== v.b) return toast('Die Codes stimmen nicht überein');
+      await Vault.enableCode(v.a); toast('Code-Sperre an');
+    }
+    sw.setAttribute('aria-checked', Vault.hasCode);
+    $('#codeTxt', el).textContent = Vault.hasCode ? 'App ist mit Code geschützt' : 'Aus – die App öffnet sich von selbst';
+    $('#codeGroup', el).hidden = !Vault.hasCode;
+    renderTab();
+  });
   $('#bioSw', el).addEventListener('click', async e => {
     const sw = e.currentTarget;
     if (Vault.hasBio) { await Vault.disableBio(); toast('Fingerabdruck aus'); }
@@ -582,6 +610,7 @@ function openSettings() {
     await Vault.changeCode(v.a); toast('Code geändert');
   });
   $('#exp', el).addEventListener('click', async () => {
+    if (!Vault.hasCode && !(await dialog({ title: 'Backup ohne Schutz', body: 'Die Code-Sperre ist aus. Die Backup-Datei lässt sich deshalb von jedem öffnen, der sie in die Hände bekommt.', ok: 'Trotzdem exportieren' }))) return;
     await flush();
     const blob = new Blob([Vault.exportText()], { type: 'application/json' });
     const name = `lumen-backup-${new Date().toISOString().slice(0, 10)}.json`;

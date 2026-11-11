@@ -76,6 +76,26 @@ export const Vault = {
   async exists() { this.rec = await get('vault'); return !!this.rec; },
   get unlocked() { return !!this.dek; },
   get hasBio() { return !!this.rec?.prf; },
+  get hasCode() { return !!this.rec?.code; },
+
+  // Ohne Code: Datenschlüssel liegt ungeschützt auf dem Gerät, die App öffnet sich von selbst.
+  async autoOpen() {
+    this.dek = await crypto.subtle.importKey('raw', this.rec.open, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+    return this.load();
+  },
+  async disableCode(code) {
+    if (!(await this.checkCode(code))) throw new Error('wrong');
+    const raw = new Uint8Array(await crypto.subtle.exportKey('raw', this.dek));
+    const { code: _c, salt: _s, iter: _i, ...rest } = this.rec;
+    this.rec = { ...rest, open: raw, prf: null };
+    await put('vault', this.rec);
+  },
+  async enableCode(newCode) {
+    const salt = rand(16);
+    const { open: _o, ...rest } = this.rec;
+    this.rec = { ...rest, iter: ITER, salt, code: await wrap(this.dek, await codeKey(newCode, salt)), prf: null };
+    await put('vault', this.rec);
+  },
 
   async create(code, data) {
     const salt = rand(16);
@@ -158,7 +178,7 @@ export const Vault = {
     if (raw.app !== 'notiz') throw new Error('format');
     const { app, ...r } = raw;
     const rec = deser(r);
-    if (!rec.salt || !rec.code?.w || !rec.data?.ct) throw new Error('format');
+    if (!(rec.open || (rec.salt && rec.code?.w)) || !rec.data?.ct) throw new Error('format');
     rec.prf = null;
     await put('vault', rec);
     this.rec = rec; this.dek = null;
