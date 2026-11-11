@@ -75,10 +75,16 @@ nav.tabs {
   display: flex; gap: 4px; padding: 6px; background: #0d0d10; border-radius: 999px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, .8), inset 0 0 0 1px #212127;
 }
-nav.tabs button { white-space: nowrap; height: 50px; min-width: 50px; padding: 0 14px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #7d7d87; font-weight: 700; font-size: .9rem; transition: background .2s var(--ease), color .2s; }
-nav.tabs button span { display: none; }
+nav.tabs button { white-space: nowrap; height: 50px; min-width: 50px; padding: 0 14px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: #7d7d87; font-weight: 700; font-size: .9rem; background: transparent;
+  transition: background-color .35s var(--ease), color .3s, transform .25s var(--ease), padding .45s var(--ease); -webkit-tap-highlight-color: transparent; }
+nav.tabs button:active { transform: scale(.92); }
+nav.tabs button span { display: inline-block; max-width: 0; margin-left: 0; opacity: 0; overflow: hidden; color: #fff; transform: translateX(-6px);
+  transition: max-width .5s var(--ease), margin-left .5s var(--ease), opacity .3s, transform .5s var(--ease); }
 nav.tabs button[aria-current="page"] { background: var(--s3); color: var(--a); }
-nav.tabs button[aria-current="page"] span { display: inline; color: #fff; }
+nav.tabs button[aria-current="page"] span { max-width: 96px; margin-left: 8px; opacity: 1; transform: none; transition-delay: 0s, 0s, .08s, 0s; }
+nav.tabs button .ic { transition: transform .45s var(--ease); }
+nav.tabs button[aria-current="page"] .ic { transform: scale(1.08); }
+@media (prefers-reduced-motion: reduce) { nav.tabs button, nav.tabs button span, nav.tabs button .ic { transition: none; } }
 
 .fab {
   position: fixed; z-index: 21; right: max(18px, calc(50% - 262px)); bottom: calc(var(--sb) + 88px);

@@ -275,6 +275,24 @@ function renderTab() {
   if (tab === 'todos') bindTodoForm();
 }
 
+// Weicher Tab-Wechsel: alter Inhalt blendet kurz aus, neuer gleitet ein, die Leiste reagiert sofort.
+let swapId = 0;
+function switchTab(next) {
+  const screen = $('#screen');
+  if (next === tab) { scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  tab = next; buzz(6);
+  document.querySelectorAll('[data-tab]').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  setMenu(false);
+  const id = ++swapId;
+  const show = () => {
+    if (id !== swapId) return;
+    enter = true; renderTab(); scrollTo(0, 0);
+    if (tab !== 'home' && screen.animate) screen.animate([{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: 340, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  };
+  if (!screen?.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return show();
+  screen.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px)' }], { duration: 120, easing: 'ease-in', fill: 'forwards' }).finished.then(() => { show(); }).catch(show);
+}
+
 const header = title => `<header class="top"><h1>${title}</h1><div class="hbtns">
   <button class="iconbtn" data-act="settings" aria-label="Einstellungen">${ic('gear')}</button>
   ${Vault.hasCode ? `<button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button>` : ''}</div></header>`;
@@ -687,8 +705,8 @@ function openQuickTodo() {
 /* ---------- Klicks ---------- */
 app.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || !data) return;
-  if (b.dataset.tab) { tab = b.dataset.tab; enter = true; renderTab(); scrollTo(0, 0); return; }
-  if (b.dataset.go) { tab = b.dataset.go; enter = true; renderTab(); scrollTo(0, 0); return; }
+  if (b.dataset.tab) return switchTab(b.dataset.tab);
+  if (b.dataset.go) return switchTab(b.dataset.go);
   if (b.dataset.note) return openNote(b.dataset.note);
   if (b.dataset.card) return openViewer(b.dataset.card);
   if (b.dataset.toggle) return toggleTodo(b.dataset.toggle, b);

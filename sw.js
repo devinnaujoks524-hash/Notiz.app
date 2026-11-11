@@ -1,6 +1,6 @@
 // Offline-Unterstützung. Strategie: erst Netz (immer die neueste Version), nur ohne Netz aus dem Cache.
 // Bei jeder neuen Version VERSION erhöhen.
-const VERSION = 'notiz-v10';
+const VERSION = 'notiz-v11';
 const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'vault.js', 'viz.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
 
