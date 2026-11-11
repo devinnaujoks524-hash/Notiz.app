@@ -286,11 +286,13 @@ function switchTab(next) {
   const id = ++swapId;
   const show = () => {
     if (id !== swapId) return;
+    screen.getAnimations?.().forEach(a => a.cancel()); // Ausblend-Animation (fill: forwards) lösen, sonst bleibt der Bildschirm bei Opazität 0 hängen
     enter = true; renderTab(); scrollTo(0, 0);
     if (tab !== 'home' && screen.animate) screen.animate([{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: 340, easing: 'cubic-bezier(.2,.8,.2,1)' });
   };
   if (!screen?.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return show();
-  screen.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px)' }], { duration: 120, easing: 'ease-in', fill: 'forwards' }).finished.then(() => { show(); }).catch(show);
+  const exit = screen.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px)' }], { duration: 120, easing: 'ease-in', fill: 'forwards' });
+  exit.finished.then(show).catch(show);
 }
 
 const header = title => `<header class="top"><h1>${title}</h1><div class="hbtns">
