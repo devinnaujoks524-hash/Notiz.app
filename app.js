@@ -254,19 +254,14 @@ function renderMain() {
       <button class="fm-item" role="menuitem" data-add="todo" style="--i:1;--a:var(--orange)"><span>To-do</span><span class="fm-ic">${ic('check')}</span></button>
       <button class="fm-item" role="menuitem" data-add="note" style="--i:0;--a:var(--yellow)"><span>Notiz</span><span class="fm-ic">${ic('note')}</span></button>
     </div>
-    <div class="vscrim" id="vscrim"></div>
-    <div class="vtray" id="vtray" aria-hidden="true"></div>
-    <div class="vhill" id="vhill" aria-hidden="true"><svg viewBox="0 0 9 44"><defs><linearGradient id="hg" x1="1" x2="0"><stop offset="0" stop-color="#000"/><stop offset="1" stop-color="#000"/></linearGradient></defs><path d="M9 0C5 0 1.5 12 1.5 22S5 44 9 44Z" fill="url(#hg)"/></svg></div>
     <button class="fab" id="fab" aria-label="Hinzufügen">${ic('plus')}</button>`;
-  bindHill();
   enter = true;
   renderTab();
 }
 
 function renderTab() {
   const screen = $('#screen'); if (!screen || !data) return;
-  setMenu(false); hillClose?.();
-  const vh = $('#vhill'); if (vh) vh.hidden = tab !== 'home';
+  setMenu(false);
   $('#glowwrap')?.classList.toggle('on', tab === 'home');
   screen.innerHTML = { home: viewHome, notes: viewNotes, todos: viewTodos, cards: viewCards }[tab]();
   document.querySelectorAll('[data-tab]').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
@@ -520,7 +515,7 @@ function openViewer(id) {
 
 function openCardForm(id) {
   const orig = data.cards.find(x => x.id === id);
-  const c = orig ? { ...orig } : { id: uid(), type: 'bank', theme: 'sunset', name: '', tag: '', holder: '', number: '', iban: '', exp: '', network: 'Visa', member: '', note: '' };
+  const c = orig ? { ...orig } : { id: uid(), type: 'bank', theme: 'sunset', name: '', holder: '', number: '', iban: '', exp: '', network: 'Visa', member: '', note: '' };
   const el = openSheet(`
     <div class="sheet-top">
       <button class="iconbtn" data-close aria-label="Abbrechen">${ic('x')}</button>
@@ -539,10 +534,10 @@ function openCardForm(id) {
     <p class="err" id="ferr" role="alert"></p>`, { label: c.name || 'Karte' , cls: 'form-sheet' });
 
   const F = {
-    bank: [['name', 'Bank / Name der Karte', 'text', 'z. B. Sparkasse'], ['tag', 'Kürzel (2–3 Zeichen, für den Hügel)', 'text', 'z. B. 42', 3], ['holder', 'Inhaber', 'text', 'Name auf der Karte'],
+    bank: [['name', 'Bank / Name der Karte', 'text', 'z. B. Sparkasse'], ['holder', 'Inhaber', 'text', 'Name auf der Karte'],
            ['number', 'Kartennummer', 'numeric', '1234 5678 9012 3456', 23], ['iban', 'IBAN', 'text', 'DE00 0000 0000 0000 0000 00', 42],
            ['exp', 'Gültig bis', 'numeric', 'MM/JJ', 5], ['network', 'Netzwerk', 'select'], ['note', 'Notiz (Rückseite)', 'area', 'z. B. Sperr-Notruf 116 116']],
-    member: [['name', 'Geschäft', 'text', 'z. B. Fitnessstudio'], ['tag', 'Kürzel (2–3 Zeichen, für den Hügel)', 'text', 'z. B. FIT', 3], ['holder', 'Inhaber', 'text', 'Dein Name'],
+    member: [['name', 'Geschäft', 'text', 'z. B. Fitnessstudio'], ['holder', 'Inhaber', 'text', 'Dein Name'],
              ['member', 'Mitgliedsnummer', 'text', ''], ['note', 'Notiz (Rückseite)', 'area', '']],
   };
   const renderForm = () => {
@@ -562,7 +557,6 @@ function openCardForm(id) {
     const t = e.target;
     if (t.name === 'number') t.value = t.value.replace(/\D/g, '').slice(0, 19).replace(/(.{4})/g, '$1 ').trim();
     if (t.name === 'iban') t.value = t.value.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 34).replace(/(.{4})/g, '$1 ').trim();
-    if (t.name === 'tag') t.value = t.value.toUpperCase().slice(0, 3);
     if (t.name === 'exp') { let v = t.value.replace(/\D/g, '').slice(0, 4); if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2); t.value = v; }
     c[t.name] = t.value; renderPrev();
   });
@@ -706,179 +700,6 @@ function openQuickTodo() {
   });
   setTimeout(() => input.focus(), 380);
 }
-
-/* ---------- Visual-Hügel (rechter Rand der Home-Ansicht) ---------- */
-// Am rechten Rand sitzt ein kleiner schwarzer Hügel. Zieht man ihn nach links (oder tippt/hält ihn), wächst er zu
-// einer schwarzen Leiste mit allen Karten (lila Symbol + Kürzel). Mit dem Finger hoch/runter fahren: die Karte unter
-// dem Finger wächst groß heraus (mit Namen). Nach links ziehen und loslassen öffnet die Karte. Leiste bleibt offen,
-// Tippen daneben schließt sie.
-const HILL = { tw: 76, sw: 206, row: 46, hold: 230, unfold: 70, lock: 100, commit: 190 };
-let hillY = null, hillClose = null;
-const tagOf = c => String(c.tag || c.name || '').trim().slice(0, 3).toUpperCase();
-
-function bindHill() {
-  const hill = $('#vhill'), tray = $('#vtray'), scrim = $('#vscrim');
-  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const clampY = y => Math.max(100, Math.min(innerHeight - 210, y));
-  const placeHill = y => { hillY = clampY(y); hill.style.transform = `translateY(${hillY}px)`; };
-  placeHill(hillY ?? innerHeight * .28);
-
-  let press = null; // Drücken auf dem Hügel, bevor die Leiste da ist
-  let o = null;     // Leiste
-
-  function build(fx) {
-    const cards = data.cards, n = cards.length, hy = hillY;
-    const row = Math.min(HILL.row, (innerHeight - 90 - 150 - 28) / n), H = n * row + 28;
-    const top = Math.max(80, Math.min(innerHeight - 140 - H, hy - H / 2));
-    tray.innerHTML = `<div class="vbody">${cards.map((c, i) => `<div class="vrow" style="top:${14 + i * row}px;height:${row}px"><span class="vic">${ic('card')}</span><b>${esc(tagOf(c))}</b></div>`).join('')}</div>
-      <div class="vsel"><span class="vic">${ic('card')}</span><div class="vtx"><b></b><small></small></div></div>`;
-    const sel = tray.querySelector('.vsel');
-    o = { n, row, H, top, hy, p: 0, pt: 0, g: null, tap: null, body: tray.querySelector('.vbody'), rows: [...tray.querySelectorAll('.vrow')],
-      sel, selTag: sel.querySelector('b'), selName: sel.querySelector('small'), active: -1, L: 0, sy: null, locked: false, past: false,
-      fx, px: 0, fy: hy, raf: 0 };
-    hill.classList.add('out'); scrim.classList.add('on'); setMenu(false); buzz(8);
-    o.raf = requestAnimationFrame(frame);
-  }
-  function cleanup() {
-    if (!o) return;
-    cancelAnimationFrame(o.raf); o = null;
-    tray.innerHTML = ''; scrim.classList.remove('on'); scrim.style.opacity = ''; scrim.style.pointerEvents = 'none';
-    hill.classList.remove('out', 'press');
-  }
-  hillClose = soft => { if (!o) return; if (soft) o.pt = 0; else cleanup(); };
-
-  const nearest = fy => Math.max(0, Math.min(o.n - 1, Math.round((fy - (o.top + 14)) / o.row - .5)));
-  function setActive(i) {
-    if (i === o.active) return;
-    if (o.active >= 0) buzz(4);
-    o.active = i;
-    const c = data.cards[i];
-    o.selTag.textContent = tagOf(c); o.selName.textContent = c.name || 'Karte';
-  }
-
-  function frame() {
-    if (!o) return;
-    const W = innerWidth, { n, row, H, top } = o;
-    o.p += (o.pt - o.p) * (still ? 1 : .2);
-    if (Math.abs(o.pt - o.p) < .004) o.p = o.pt;
-    const p = o.p;
-    if (p === 0 && o.pt === 0 && !o.g) return cleanup();
-    // Hügel -> Leiste: die Form wächst aus dem Hügel heraus
-    const w = 9 + (HILL.tw - 9) * p, h = 44 + (H - 44) * p, t = (o.hy - 22) + (top - (o.hy - 22)) * p;
-    const rx = Math.min(w, 26), ry = Math.min(h / 2, 26);
-    Object.assign(o.body.style, { top: t.toFixed(1) + 'px', width: w.toFixed(1) + 'px', height: h.toFixed(1) + 'px',
-      borderRadius: `${rx}px 0 0 ${rx}px / ${ry}px 0 0 ${ry}px` });
-    const ro = Math.max(0, Math.min(1, (p - .55) / .45));
-    o.rows.forEach(r => { r.style.opacity = ro; });
-    scrim.style.opacity = (.72 * p).toFixed(3);
-    scrim.style.pointerEvents = o.pt === 1 && p > .9 ? 'auto' : 'none';
-
-    // Auswahl: die Karte unter dem Finger wächst groß heraus
-    const live = !!o.g && p > .9;
-    if (live && !o.locked) setActive(nearest(o.fy));
-    o.L += ((live && o.active >= 0 ? 1 : 0) - o.L) * (still ? 1 : .22);
-    if (o.active >= 0) {
-      const ty = top + 14 + o.active * row + row / 2;
-      o.sy = o.sy == null || o.L < .05 ? ty : o.sy + (ty - o.sy) * (still ? 1 : .35);
-      o.px += (Math.max(0, W - o.fx) - o.px) * (still ? 1 : .5);
-      const L = o.L, sw = HILL.tw + (HILL.sw - HILL.tw) * L, sh = 40 + 16 * L;
-      const tx = o.locked ? -Math.max(0, o.px - HILL.lock) : 0;
-      Object.assign(o.sel.style, { opacity: L > .02 ? 1 : 0, width: sw.toFixed(1) + 'px', height: sh.toFixed(1) + 'px',
-        top: (o.sy - sh / 2).toFixed(1) + 'px', transform: `translateX(${tx.toFixed(1)}px)`, borderRadius: `${sh / 2}px 0 0 ${sh / 2}px` });
-      o.selName.style.opacity = L; o.selName.style.maxHeight = (16 * L).toFixed(1) + 'px';
-      o.sel.classList.toggle('lit', o.past);
-    }
-    o.raf = requestAnimationFrame(frame);
-  }
-
-  // Finger in der Leiste: ausklappen (vom Hügel aus), dann hoch/runter wählen und nach links rausziehen
-  function gMove(e) {
-    const g = o?.g; if (!g || e.pointerId !== g.id) return;
-    o.fx = e.clientX; o.fy = e.clientY;
-    if (g.fromHill && !g.unfolded) {
-      o.pt = Math.max(0, Math.min(1, (g.x0 - e.clientX) / HILL.unfold)); o.p = o.pt;
-      if (o.pt >= 1) { g.unfolded = true; buzz(8); }
-      return;
-    }
-    g.moved = Math.max(g.moved || 0, Math.hypot(e.clientX - g.x0, e.clientY - g.y0));
-    const out = innerWidth - e.clientX;
-    if (!o.locked && out > HILL.lock && o.active >= 0) { o.locked = true; buzz(6); }
-    else if (o.locked && out < HILL.lock * .7) { o.locked = false; o.past = false; }
-    const past = o.locked && out > HILL.commit;
-    if (past !== o.past) { o.past = past; if (past) buzz(12); }
-  }
-  function commit() {
-    const id = data.cards[o.active].id;
-    o.g = null; o.locked = false; o.past = false; o.fx = innerWidth; o.pt = 0;
-    buzz(12); openViewer(id);
-  }
-  function gUp(e) {
-    const g = o?.g; if (!g || e.pointerId !== g.id) return;
-    const up = e.type === 'pointerup';
-    o.g = null; o.fx = innerWidth;
-    if (g.fromHill && !g.unfolded) { o.pt = up && o.pt > .4 ? 1 : 0; return; }
-    if (up && o.locked && o.past) { o.g = g; return commit(); }
-    if (up && !g.fromHill && (g.moved || 0) < 10 && o.active >= 0) { o.g = g; return commit(); }
-    o.locked = false; o.past = false;
-  }
-
-  // Hügel: ziehen, antippen oder halten
-  const endPress = () => { if (press) { clearTimeout(press.timer); press = null; } hill.classList.remove('press'); };
-  hill.addEventListener('pointerdown', e => {
-    if (tab !== 'home' || o || press) return;
-    try { hill.setPointerCapture(e.pointerId); } catch {}
-    const p = press = { id: e.pointerId, x0: e.clientX, y0: e.clientY };
-    hill.classList.add('press');
-    p.timer = setTimeout(() => {
-      if (press !== p) return;
-      endPress();
-      if (!data.cards.length) return toast('Noch keine Karten');
-      build(innerWidth); o.pt = 1; o.p = 1;
-      o.g = { id: p.id, fromHill: true, unfolded: true, x0: p.x0, y0: p.y0 }; o.fx = p.x0; o.fy = p.y0;
-    }, HILL.hold);
-  });
-  hill.addEventListener('pointermove', e => {
-    if (press && e.pointerId === press.id) {
-      if (e.clientX - press.x0 < -6) {
-        const p = press; endPress();
-        if (!data.cards.length) return toast('Noch keine Karten');
-        build(innerWidth);
-        o.g = { id: p.id, fromHill: true, unfolded: false, x0: p.x0, y0: p.y0 };
-        gMove(e);
-      } else if (Math.hypot(e.clientX - press.x0, e.clientY - press.y0) > 12) endPress();
-    } else gMove(e);
-  });
-  const hillUp = e => {
-    if (press && e.pointerId === press.id) {
-      endPress();
-      if (e.type === 'pointerup') { if (!data.cards.length) return toast('Noch keine Karten'); build(innerWidth); o.pt = 1; }
-    } else gUp(e);
-  };
-  hill.addEventListener('pointerup', hillUp); hill.addEventListener('pointercancel', hillUp);
-  hill.addEventListener('contextmenu', e => e.preventDefault());
-
-  // Offene Leiste: in der Leiste fahren/ziehen, daneben antippen = schließen
-  scrim.addEventListener('pointerdown', e => {
-    if (!o || o.g || o.tap || o.pt !== 1) return;
-    const inTray = innerWidth - e.clientX <= HILL.tw + 28 && e.clientY >= o.top - 20 && e.clientY <= o.top + o.H + 20;
-    if (inTray) {
-      try { scrim.setPointerCapture(e.pointerId); } catch {}
-      o.g = { id: e.pointerId, fromHill: false, unfolded: true, x0: e.clientX, y0: e.clientY, moved: 0 };
-      o.fx = e.clientX; o.fy = e.clientY; o.locked = false; o.past = false;
-      setActive(nearest(o.fy));
-    } else o.tap = { id: e.pointerId, x: e.clientX, y: e.clientY };
-  });
-  scrim.addEventListener('pointermove', e => {
-    if (o?.tap && e.pointerId === o.tap.id) { if (Math.hypot(e.clientX - o.tap.x, e.clientY - o.tap.y) > 12) o.tap = null; }
-    else gMove(e);
-  });
-  const scrimUp = e => {
-    if (o?.tap && e.pointerId === o.tap.id) { const tap = e.type === 'pointerup'; o.tap = null; if (tap) o.pt = 0; }
-    else gUp(e);
-  };
-  scrim.addEventListener('pointerup', scrimUp); scrim.addEventListener('pointercancel', scrimUp);
-}
-addEventListener('keydown', e => { if (e.key === 'Escape') hillClose?.(true); });
 
 /* ---------- Klicks ---------- */
 app.addEventListener('click', e => {
