@@ -254,14 +254,20 @@ function renderMain() {
       <button class="fm-item" role="menuitem" data-add="todo" style="--i:1;--a:var(--orange)"><span>To-do</span><span class="fm-ic">${ic('check')}</span></button>
       <button class="fm-item" role="menuitem" data-add="note" style="--i:0;--a:var(--yellow)"><span>Notiz</span><span class="fm-ic">${ic('note')}</span></button>
     </div>
+    <div class="vedge" id="vedge" aria-hidden="true"></div>
+    <div class="vscrim" id="vscrim"></div>
+    <aside class="vdrawer" id="vdrawer" aria-label="Visualisierungen" inert><div class="vgrip" aria-hidden="true"></div><div class="vlist" id="vlist"></div></aside>
     <button class="fab" id="fab" aria-label="Hinzufügen">${ic('plus')}</button>`;
+  drawerOpen = false;
+  bindDrawer();
   enter = true;
   renderTab();
 }
 
 function renderTab() {
   const screen = $('#screen'); if (!screen || !data) return;
-  setMenu(false);
+  setMenu(false); setDrawer(false);
+  const ve = $('#vedge'); if (ve) ve.hidden = tab !== 'home';
   $('#glowwrap')?.classList.toggle('on', tab === 'home');
   screen.innerHTML = { home: viewHome, notes: viewNotes, todos: viewTodos, cards: viewCards }[tab]();
   document.querySelectorAll('[data-tab]').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
@@ -700,6 +706,82 @@ function openQuickTodo() {
   });
   setTimeout(() => input.focus(), 380);
 }
+
+/* ---------- Visual-Schublade (rechter Rand der Home-Ansicht) ---------- */
+let drawerOpen = false;
+function setDrawer(open) {
+  const d = $('#vdrawer'); if (!d || !data) return;
+  if (open === drawerOpen) return;
+  drawerOpen = open;
+  if (open) {
+    setMenu(false);
+    $('#vlist').innerHTML = data.cards.length
+      ? data.cards.map(c => `<div class="vitem" role="button" tabindex="0" data-vid="${c.id}" aria-label="${esc(c.name || 'Karte')} öffnen">${cardMarkup(c)}</div>`).join('')
+      : '<p class="vempty">Noch keine Karten. Lege im Bereich Visual eine an.</p>';
+    $('#vlist').scrollTop = 0;
+    buzz(10);
+  }
+  d.classList.toggle('open', open); $('#vscrim').classList.toggle('open', open);
+  d.toggleAttribute('inert', !open);
+}
+function bindDrawer() {
+  const edge = $('#vedge'), list = $('#vlist'), scrim = $('#vscrim');
+  // Rechten Rand gedrückt halten -> Schublade fährt raus
+  let hold = 0, p0 = null;
+  const stopHold = () => { clearTimeout(hold); hold = 0; p0 = null; };
+  edge.addEventListener('pointerdown', e => {
+    if (tab !== 'home') return;
+    p0 = { x: e.clientX, y: e.clientY };
+    try { edge.setPointerCapture(e.pointerId); } catch {}
+    hold = setTimeout(() => { stopHold(); setDrawer(true); }, 380);
+  });
+  edge.addEventListener('pointermove', e => { if (p0 && Math.hypot(e.clientX - p0.x, e.clientY - p0.y) > 14) stopHold(); });
+  edge.addEventListener('pointerup', stopHold); edge.addEventListener('pointercancel', stopHold);
+  edge.addEventListener('contextmenu', e => e.preventDefault());
+  scrim.addEventListener('click', () => setDrawer(false));
+
+  const openCard = id => { setDrawer(false); openViewer(id); };
+  list.addEventListener('keydown', e => {
+    const it = e.target.closest('.vitem');
+    if (it && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openCard(it.dataset.vid); }
+  });
+  // Karte nach links aus der Schublade ziehen -> sofort offen. Antippen geht auch.
+  let g = null;
+  list.addEventListener('pointerdown', e => {
+    const it = e.target.closest('.vitem'); if (!it) return;
+    g = { it, id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, mode: '', ghost: null };
+  });
+  list.addEventListener('pointermove', e => {
+    if (!g || e.pointerId !== g.id) return;
+    const dx = e.clientX - g.x, dy = e.clientY - g.y;
+    if (!g.mode) {
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        g.mode = 'drag';
+        try { g.it.setPointerCapture(e.pointerId); } catch {}
+        const r = g.it.getBoundingClientRect(), gh = g.it.cloneNode(true);
+        gh.className = 'vghost'; gh.removeAttribute('tabindex'); gh.removeAttribute('role');
+        gh.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;font-size:${getComputedStyle(g.it).fontSize}`;
+        document.body.append(gh); g.ghost = gh; g.it.classList.add('lifted'); buzz(6);
+      } else if (Math.abs(dy) > 10) g.mode = 'scroll';
+    }
+    if (g.mode === 'drag') {
+      g.dx = Math.min(0, dx);
+      g.ghost.style.transform = `translate(${g.dx}px, ${dy * .35}px) scale(${1 + Math.min(.7, -g.dx / 260)})`;
+    }
+  });
+  const end = e => {
+    if (!g || e.pointerId !== g.id) return;
+    const { it, mode, dx, ghost } = g; g = null;
+    if (mode === 'drag') {
+      it.classList.remove('lifted');
+      if (e.type === 'pointerup' && dx < -80) { ghost.remove(); buzz(12); openCard(it.dataset.vid); return; }
+      ghost.style.transition = 'transform .3s var(--ease), opacity .3s'; ghost.style.transform = 'none'; ghost.style.opacity = '0';
+      setTimeout(() => ghost.remove(), 320);
+    } else if (!mode && e.type === 'pointerup') openCard(it.dataset.vid);
+  };
+  list.addEventListener('pointerup', end); list.addEventListener('pointercancel', end);
+}
+addEventListener('keydown', e => { if (e.key === 'Escape' && drawerOpen) setDrawer(false); });
 
 /* ---------- Klicks ---------- */
 app.addEventListener('click', e => {
