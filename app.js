@@ -235,8 +235,8 @@ document.addEventListener('visibilitychange', async () => {
 
 /* ---------- Hauptansicht ---------- */
 const TABS = [
-  { id: 'home', label: 'Übersicht', icon: 'home', color: 'white' },
-  { id: 'notes', label: 'Notizen', icon: 'note', color: 'yellow' },
+  { id: 'home', label: 'Home', icon: 'home', color: 'white' },
+  { id: 'notes', label: 'Notes', icon: 'note', color: 'yellow' },
   { id: 'todos', label: 'To-dos', icon: 'check', color: 'orange' },
   { id: 'cards', label: 'Visual', icon: 'card', color: 'violet' },
 ];
