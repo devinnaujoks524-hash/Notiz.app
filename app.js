@@ -478,14 +478,15 @@ function viewCards() {
   return `${header('Visualisierung')}
     ${data.cards.length ? `<p class="sub left">Tippe auf eine Karte, um sie in 3D anzusehen.</p>
     <div class="stack">${data.cards.map(c => `<button class="cardthumb" data-card="${c.id}" aria-label="${esc(c.name || 'Karte')} öffnen">${cardMarkup(c)}</button>`).join('')}</div>`
-      : emptyState('card', 'Noch keine Karten', 'Füge deine Bank- oder Kundenkarten hinzu – sie schweben dann in 3D.')}`;
+      : emptyState('card', 'Noch keine Karten', 'Füge deine Bankkarte mit Nummer und IBAN hinzu – sie schwebt dann in 3D.')}`;
 }
 
 function openViewer(id) {
   const c = data.cards.find(x => x.id === id); if (!c) return;
   const info = c.type === 'member'
     ? [['Geschäft', c.name], ['Mitgliedsnr.', c.member, true], ['Inhaber', c.holder]]
-    : [['Bank', c.name], ['Endziffern', c.last4 && '•••• ' + c.last4], ['Inhaber', c.holder], ['Gültig bis', c.exp], ['Netzwerk', c.network]];
+    : [['Bank', c.name], ['Kartennummer', c.number ? c.number.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim() : c.last4 && '•••• ' + c.last4, !!c.number, c.number?.replace(/\s/g, '')],
+       ['IBAN', c.iban && c.iban.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim(), true, c.iban?.replace(/\s/g, '')], ['Inhaber', c.holder], ['Gültig bis', c.exp], ['Netzwerk', c.network]];
   let stop;
   const el = openSheet(`
     <div class="sheet-top">
@@ -498,7 +499,7 @@ function openViewer(id) {
     </div>
     <p class="hint">Ziehen zum Drehen · Tippen zum Umdrehen</p>
     <div class="pills info">
-      ${info.filter(i => i[1]).map(([k, v, copy]) => `<div class="pill"><span><small>${k}</small>${esc(v)}</span>${copy ? `<button class="iconbtn sm" data-copy="${esc(v)}" aria-label="${k} kopieren">${ic('copy')}</button>` : ''}</div>`).join('')}
+       ${info.filter(i => i[1]).map(([k, v, copy, raw]) => `<div class="pill${copy ? ' wide' : ''}"><span class="clip"><small>${k}</small>${esc(v)}</span>${copy ? `<button class="iconbtn sm" data-copy="${esc(raw || v)}" aria-label="${k} kopieren">${ic('copy')}</button>` : ''}</div>`).join('')}
       ${c.note ? `<div class="pill wide"><span class="clip multi"><small>Notiz</small>${esc(c.note)}</span></div>` : ''}
     </div>`, { label: 'Karte ansehen', cls: 'viewer', onClose: () => stop?.() });
   stop = mountViewer($('#stage', el));
@@ -514,7 +515,7 @@ function openViewer(id) {
 
 function openCardForm(id) {
   const orig = data.cards.find(x => x.id === id);
-  const c = orig ? { ...orig } : { id: uid(), type: 'bank', theme: 'sunset', name: '', holder: '', last4: '', exp: '', network: 'Visa', member: '', note: '' };
+  const c = orig ? { ...orig } : { id: uid(), type: 'bank', theme: 'sunset', name: '', holder: '', number: '', iban: '', exp: '', network: 'Visa', member: '', note: '' };
   const el = openSheet(`
     <div class="sheet-top">
       <button class="iconbtn" data-close aria-label="Abbrechen">${ic('x')}</button>
@@ -529,13 +530,13 @@ function openCardForm(id) {
     <div class="swatches big" role="radiogroup" aria-label="Design">
       ${Object.entries(THEMES).map(([k, [a, b]]) => `<button type="button" role="radio" data-theme="${k}" aria-label="${k}" style="background:linear-gradient(135deg,${a},${b})"></button>`).join('')}
     </div>
-    <p class="warn">${ic('shield')}<span>PIN, Prüfnummer (CVV) und die volle Kartennummer werden bewusst nicht gespeichert – so kann niemand damit einkaufen, selbst wenn er an dein Handy kommt.</span></p>
+    <p class="warn">${ic('shield')}<span>Alles bleibt verschlüsselt auf deinem Handy. PIN und Prüfnummer (CVV) gibt es hier bewusst nicht – die merkst du dir besser selbst.</span></p>
     <p class="err" id="ferr" role="alert"></p>`, { label: c.name || 'Karte' , cls: 'form-sheet' });
 
   const F = {
     bank: [['name', 'Bank / Name der Karte', 'text', 'z. B. Sparkasse'], ['holder', 'Inhaber', 'text', 'Name auf der Karte'],
-           ['last4', 'Letzte 4 Ziffern', 'numeric', '1234', 4], ['exp', 'Gültig bis', 'numeric', 'MM/JJ', 5],
-           ['network', 'Netzwerk', 'select'], ['note', 'Notiz (Rückseite)', 'area', 'z. B. Sperr-Notruf 116 116']],
+           ['number', 'Kartennummer', 'numeric', '1234 5678 9012 3456', 23], ['iban', 'IBAN', 'text', 'DE00 0000 0000 0000 0000 00', 42],
+           ['exp', 'Gültig bis', 'numeric', 'MM/JJ', 5], ['network', 'Netzwerk', 'select'], ['note', 'Notiz (Rückseite)', 'area', 'z. B. Sperr-Notruf 116 116']],
     member: [['name', 'Geschäft', 'text', 'z. B. Fitnessstudio'], ['holder', 'Inhaber', 'text', 'Dein Name'],
              ['member', 'Mitgliedsnummer', 'text', ''], ['note', 'Notiz (Rückseite)', 'area', '']],
   };
@@ -554,7 +555,8 @@ function openCardForm(id) {
   renderForm(); renderPrev();
   $('#cf', el).addEventListener('input', e => {
     const t = e.target;
-    if (t.name === 'last4') t.value = t.value.replace(/\D/g, '').slice(0, 4);
+    if (t.name === 'number') t.value = t.value.replace(/\D/g, '').slice(0, 19).replace(/(.{4})/g, '$1 ').trim();
+    if (t.name === 'iban') t.value = t.value.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 34).replace(/(.{4})/g, '$1 ').trim();
     if (t.name === 'exp') { let v = t.value.replace(/\D/g, '').slice(0, 4); if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2); t.value = v; }
     c[t.name] = t.value; renderPrev();
   });
@@ -562,10 +564,7 @@ function openCardForm(id) {
   el.querySelectorAll('[data-theme]').forEach(b => b.addEventListener('click', () => { c.theme = b.dataset.theme; renderPrev(); }));
   $('#save', el).addEventListener('click', () => {
     const err = $('#ferr', el);
-    const all = Object.values(c).join(' ');
-    if (/\d[\d \-]{11,}\d/.test(all.replace(c.member || '', ''))) return (err.textContent = 'Sieht nach einer vollen Kartennummer aus – bitte nur die letzten 4 Ziffern eintragen.');
     if (!c.name.trim()) return (err.textContent = 'Gib der Karte einen Namen.');
-    if (c.type === 'bank' && c.last4 && c.last4.length !== 4) return (err.textContent = 'Bitte genau 4 Ziffern eintragen.');
     if (orig) Object.assign(orig, c); else data.cards.push(c);
     save(); history.back(); toast(orig ? 'Karte aktualisiert' : 'Karte hinzugefügt');
     if (!orig) setTimeout(() => openViewer(c.id), 320);

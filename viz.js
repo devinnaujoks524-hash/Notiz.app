@@ -9,6 +9,7 @@ export const THEMES = {
   night:  ['#2c2c35', '#09090c', '#fff'],
 };
 
+const grp = s => String(s ?? '').replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim();
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 function front(c) {
@@ -19,7 +20,7 @@ function front(c) {
   return `
     <div class="cf-top"><span class="cf-brand">${esc(c.name || 'Meine Bank')}</span><span class="cf-net">${esc(c.network || '')}</span></div>
     <div class="cf-chip"></div>
-    <div class="cf-num">•••• •••• •••• ${esc(c.last4 || '0000')}</div>
+    <div class="cf-num${(c.number || '').length > 16 ? ' long' : ''}">${c.number ? esc(grp(c.number)) : `•••• •••• •••• ${esc(c.last4 || '0000')}`}</div>
     <div class="cf-bottom">
       <div><small>Inhaber</small><span>${esc(c.holder || 'Dein Name')}</span></div>
       <div><small>Gültig bis</small><span>${esc(c.exp || 'MM/JJ')}</span></div>
@@ -34,7 +35,10 @@ export function cardMarkup(c, mode = 'flat') {
       <div class="cface front">${front(c)}<div class="sheen"></div></div>
       <div class="cface back">
         <div class="cb-stripe"></div>
-        <div class="cb-body"><small>Notiz</small><p>${esc(c.note || 'Keine Notiz')}</p></div>
+        <div class="cb-body">
+          ${c.iban ? `<small>IBAN</small><p class="iban">${esc(grp(c.iban))}</p>` : ''}
+          ${c.note || !c.iban ? `<small class="gap">Notiz</small><p class="nt">${esc(c.note || 'Keine Notiz')}</p>` : ''}
+        </div>
         <div class="cb-dot"></div>
       </div>
     </div>`;
