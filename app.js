@@ -189,19 +189,25 @@ function renderLock(msg = '') {
 }
 
 /* ---------- Schloss-Animation beim Entsperren ---------- */
+// Kleines grünes Schloss fällt über dem Logo von oben herein, klickt auf – dann geht's rein (~0,7 s).
 function playUnlock(done) {
+  const ease = 'cubic-bezier(.2,.9,.25,1.15)';
   if (matchMedia('(prefers-reduced-motion: reduce)').matches || !document.body.animate) return done();
-  const ov = document.createElement('div');
-  ov.className = 'unlockfx'; ov.setAttribute('aria-hidden', 'true');
-  ov.innerHTML = `<div class="u-wrap"><div class="u-glow"></div><div class="u-ring"></div>
-    <svg class="u-lock" viewBox="0 0 96 96"><path class="shackle" d="M32 44V34a16 16 0 0132 0v10"/><rect class="body" x="19" y="42" width="58" height="42" rx="13"/><circle class="keyhole" cx="48" cy="60" r="4.5"/><rect class="keyhole" x="46" y="62" width="4" height="10" rx="2"/></svg></div>`;
-  document.body.append(ov);
-  ov.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, fill: 'forwards', easing: 'ease-out' });
-  requestAnimationFrame(() => ov.classList.add('show'));
-  setTimeout(() => { ov.classList.add('open'); buzz([12, 40, 14]); }, 460);
-  setTimeout(done, 1000);
-  setTimeout(() => ov.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.14)' }],
-    { duration: 520, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' }).finished.then(() => ov.remove()), 1100);
+  const logo = document.querySelector('.lock .logo');
+  const y = Math.max(24, (logo ? logo.getBoundingClientRect().top : 140) - 100);
+  const el = document.createElement('div');
+  el.className = 'ulock'; el.setAttribute('aria-hidden', 'true'); el.style.setProperty('--y', y + 'px');
+  el.innerHTML = `<svg viewBox="0 0 96 96"><path class="shackle" d="M32 44V34a16 16 0 0132 0v10"/><rect class="body" x="19" y="42" width="58" height="42" rx="13"/><circle class="kh" cx="48" cy="60" r="4.5"/><rect class="kh" x="46" y="62" width="4" height="10" rx="2"/></svg>`;
+  document.body.append(el);
+  const away = `translateY(${-(y + 130)}px)`;
+  el.animate([{ transform: away + ' scale(.8)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 300, easing: ease, fill: 'both' });
+  setTimeout(() => {
+    el.classList.add('open'); buzz([10, 30, 12]);
+    el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }], { duration: 240, easing: 'ease-out' });
+  }, 270);
+  setTimeout(() => document.querySelector('.lock')?.classList.add('leaving'), 520);
+  setTimeout(done, 680);
+  setTimeout(() => el.animate([{ transform: 'none', opacity: 1 }, { transform: away, opacity: 0 }], { duration: 320, easing: 'cubic-bezier(.5,0,.8,.4)', fill: 'forwards' }).finished.then(() => el.remove()), 620);
 }
 
 async function lockNow() {
