@@ -30,7 +30,7 @@ const ic = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${P[n]}<
 
 /* ---------- Zustand ---------- */
 const empty = () => ({ v: 1, notes: [], todos: [], cards: [], settings: { autolock: 60 } });
-let data = null, tab = 'home', saveT = null, hiddenAt = 0, bioOk = false, fails = 0, waitUntil = 0, enter = true, menuOpen = false;
+let data = null, tab = 'home', saveT = null, hiddenAt = 0, bioOk = false, fails = 0, waitUntil = 0, enter = true, menuOpen = false, updateReady = false;
 const freshIds = new Set();
 const sheets = [];
 const COLORS = ['yellow', 'orange', 'pink', 'violet', 'blue', 'green'];
@@ -100,7 +100,15 @@ function closeAllSheets() { while (sheets.length) { const s = sheets.pop(); s.on
 
 /* ---------- Start ---------- */
 async function boot() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    const had = !!navigator.serviceWorker.controller;
+    // Neue Version erkannt: neu laden, sobald die App gesperrt ist (nie mitten im Schreiben)
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!had) return;
+      if (!Vault.unlocked) location.reload(); else updateReady = true;
+    });
+    navigator.serviceWorker.register('sw.js').then(r => r.update()).catch(() => {});
+  }
   try { navigator.storage?.persist?.(); } catch {}
   if (!window.crypto?.subtle) {
     app.innerHTML = `<div class="lock"><div class="logo"></div><h1>Notiz</h1><p class="sub">Die App braucht eine sichere Verbindung (https). Öffne sie über deinen GitHub-Pages-Link.</p></div>`;
@@ -183,6 +191,7 @@ function renderLock(msg = '') {
 async function lockNow() {
   await flush();
   Vault.lock(); data = null;
+  if (updateReady) return location.reload();
   renderLock();
 }
 
