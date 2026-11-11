@@ -370,22 +370,25 @@ nav.tabs button[aria-current="page"] .ic { transform: scale(1.08); }
 .lock.leaving > * { opacity: 0; transform: translateY(-8px); }
 
 /* Visual-Hügel am rechten Rand */
-.vhill { position: fixed; z-index: 25; right: 0; top: 0; width: 40px; height: 84px; margin-top: -42px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; transition: transform .4s var(--ease); }
+.vhill { position: fixed; z-index: 25; right: 0; top: 0; width: 44px; height: 88px; margin-top: -44px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 .vhill svg { position: absolute; right: 0; top: 50%; width: 9px; height: 44px; margin-top: -22px; overflow: visible; transform-origin: 100% 50%; transition: transform .3s var(--ease); }
 .vhill.press svg { transform: scale(1.3); }
-.vhill.live { transition: none; z-index: 44; }
-.vhill.out { pointer-events: none; }
-.vhill.out svg { transform: scale(1.8, 1.3); }
+.vhill.out { opacity: 0; pointer-events: none; }
 .vhill[hidden] { display: none; }
-.vscrim { position: fixed; inset: 0; z-index: 44; background: rgba(0, 0, 0, .72); opacity: 0; visibility: hidden; pointer-events: none; touch-action: none; transition: opacity .35s var(--ease), visibility 0s .35s; }
-.vscrim.on { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
-.vtrack { position: fixed; inset: 0; z-index: 45; pointer-events: none; opacity: 0; transition: opacity .25s var(--ease); }
-.vtrack.on { opacity: 1; }
-.vcard { position: absolute; right: 0; top: 0; width: 78px; height: 38px; display: flex; align-items: center; gap: 7px; padding-left: 13px; border-radius: 19px; background: #000;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, calc(.12 + .2 * var(--l, 0))), 0 calc(6px + 16px * var(--l, 0)) calc(18px + 22px * var(--l, 0)) rgba(0, 0, 0, .75); transform-origin: 100% 50%; will-change: transform; }
-.vcard .vic { display: grid; place-items: center; color: var(--violet); }
-.vcard .ic { width: 19px; height: 19px; }
-.vcard b { font-size: 14px; font-weight: 650; letter-spacing: .02em; color: #f5f5f7; font-variant-numeric: tabular-nums; }
-.vcard.lit { box-shadow: inset 0 0 0 1.5px var(--violet), 0 0 24px rgba(166, 107, 255, .45), 0 14px 36px rgba(0, 0, 0, .75); }
-.vlabel { position: absolute; right: 0; top: 0; font-size: 14px; font-weight: 600; letter-spacing: -.01em; color: #f5f5f7; white-space: nowrap; will-change: transform, opacity; }
-@media (prefers-reduced-motion: reduce) { .vhill svg, .vhill, .vscrim, .vtrack { transition: none; } }
+.vscrim { position: fixed; inset: 0; z-index: 44; background: #000; opacity: 0; visibility: hidden; pointer-events: none; touch-action: none; transition: opacity .2s linear; }
+.vscrim.on { visibility: visible; }
+.vtray { position: fixed; inset: 0; z-index: 45; pointer-events: none; }
+.vbody { position: absolute; right: 0; top: 0; width: 9px; height: 44px; background: #000; box-shadow: inset 1px 0 0 rgba(255, 255, 255, .1), -8px 0 30px rgba(0, 0, 0, .85); }
+.vrow { position: absolute; left: 0; right: 0; display: flex; align-items: center; justify-content: center; gap: 6px; opacity: 0; }
+.vrow .vic { display: grid; place-items: center; color: var(--violet); }
+.vrow .ic { width: 19px; height: 19px; }
+.vrow b { font-size: 13px; font-weight: 650; letter-spacing: .02em; color: #d8d8df; font-variant-numeric: tabular-nums; }
+.vsel { position: absolute; right: 0; top: 0; width: 76px; height: 40px; display: flex; align-items: center; gap: 10px; padding-left: 14px; overflow: hidden; opacity: 0; background: #000; white-space: nowrap;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16), 0 16px 40px rgba(0, 0, 0, .8); will-change: transform, width, height; }
+.vsel.lit { box-shadow: inset 0 0 0 1.5px var(--violet), 0 0 26px rgba(166, 107, 255, .45), 0 16px 40px rgba(0, 0, 0, .8); }
+.vsel .vic { display: grid; place-items: center; color: var(--violet); flex: none; }
+.vsel .ic { width: 23px; height: 23px; }
+.vsel .vtx { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.vsel b { font-size: 17px; font-weight: 650; letter-spacing: .02em; color: #fff; line-height: 1.15; }
+.vsel small { font-size: 12.5px; color: #9a9aa5; overflow: hidden; text-overflow: ellipsis; max-width: 150px; line-height: 1.2; opacity: 0; max-height: 0; }
+@media (prefers-reduced-motion: reduce) { .vscrim { transition: none; } }
