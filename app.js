@@ -172,20 +172,36 @@ function renderLock(msg = '') {
     busy(btn, 'Entsperre …');
     try {
       data = Object.assign(empty(), await Vault.unlockCode($('#c').value));
-      fails = 0; renderMain();
+      fails = 0; playUnlock(renderMain);
     } catch {
       fails++; if (fails >= 3) waitUntil = Date.now() + 2 ** (fails - 2) * 1000;
       unbusy(btn); err.textContent = 'Falscher Code.'; $('#c').select(); buzz([30, 40, 30]);
     }
   });
   $('#bio')?.addEventListener('click', async () => {
-    try { data = Object.assign(empty(), await Vault.unlockBio()); renderMain(); }
+    try { data = Object.assign(empty(), await Vault.unlockBio()); playUnlock(renderMain); }
     catch (e) { $('#err').textContent = e.name === 'NotAllowedError' ? 'Abgebrochen.' : 'Fingerabdruck hat nicht geklappt. Nutze deinen Code.'; }
   });
   $('#forgot').addEventListener('click', async () => {
     const ok = await dialog({ title: 'Code vergessen?', body: 'Ohne Code lassen sich die Daten nicht entschlüsseln – das ist der Sinn der Verschlüsselung. Du kannst nur alles löschen und neu anfangen (oder ein Backup importieren).', ok: 'Alles löschen', danger: true });
     if (ok) { await Vault.wipe(); data = null; renderSetup(); }
   });
+}
+
+/* ---------- Schloss-Animation beim Entsperren ---------- */
+function playUnlock(done) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || !document.body.animate) return done();
+  const ov = document.createElement('div');
+  ov.className = 'unlockfx'; ov.setAttribute('aria-hidden', 'true');
+  ov.innerHTML = `<div class="u-wrap"><div class="u-glow"></div><div class="u-ring"></div>
+    <svg class="u-lock" viewBox="0 0 96 96"><path class="shackle" d="M32 44V34a16 16 0 0132 0v10"/><rect class="body" x="19" y="42" width="58" height="42" rx="13"/><circle class="keyhole" cx="48" cy="60" r="4.5"/><rect class="keyhole" x="46" y="62" width="4" height="10" rx="2"/></svg></div>`;
+  document.body.append(ov);
+  ov.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220, fill: 'forwards', easing: 'ease-out' });
+  requestAnimationFrame(() => ov.classList.add('show'));
+  setTimeout(() => { ov.classList.add('open'); buzz([12, 40, 14]); }, 460);
+  setTimeout(done, 1000);
+  setTimeout(() => ov.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.14)' }],
+    { duration: 520, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' }).finished.then(() => ov.remove()), 1100);
 }
 
 async function lockNow() {
