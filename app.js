@@ -256,7 +256,7 @@ function renderMain() {
     </div>
     <div class="vscrim" id="vscrim"></div>
     <div class="vtrack" id="vtrack" aria-hidden="true"></div>
-    <div class="vhill" id="vhill" aria-hidden="true"><svg viewBox="0 0 16 80"><defs><linearGradient id="hg" x1="1" x2="0"><stop offset="0" stop-color="#16161a"/><stop offset="1" stop-color="#2a2a31"/></linearGradient></defs><path d="M16 0C9 0 3 22 3 40S9 80 16 80Z" fill="url(#hg)"/><path d="M16 0C9 0 3 22 3 40S9 80 16 80" fill="none" stroke="rgba(166,107,255,.45)" stroke-width="1"/></svg></div>
+    <div class="vhill" id="vhill" aria-hidden="true"><svg viewBox="0 0 9 44"><defs><linearGradient id="hg" x1="1" x2="0"><stop offset="0" stop-color="#16161a"/><stop offset="1" stop-color="#2a2a31"/></linearGradient></defs><path d="M9 0C5 0 1.5 12 1.5 22S5 44 9 44Z" fill="url(#hg)"/><path d="M9 0C5 0 1.5 12 1.5 22S5 44 9 44" fill="none" stroke="rgba(166,107,255,.4)" stroke-width=".8"/></svg></div>
     <button class="fab" id="fab" aria-label="Hinzufügen">${ic('plus')}</button>`;
   bindHill();
   enter = true;
@@ -265,7 +265,7 @@ function renderMain() {
 
 function renderTab() {
   const screen = $('#screen'); if (!screen || !data) return;
-  setMenu(false);
+  setMenu(false); hillClose?.();
   const vh = $('#vhill'); if (vh) vh.hidden = tab !== 'home';
   $('#glowwrap')?.classList.toggle('on', tab === 'home');
   screen.innerHTML = { home: viewHome, notes: viewNotes, todos: viewTodos, cards: viewCards }[tab]();
@@ -708,11 +708,12 @@ function openQuickTodo() {
 }
 
 /* ---------- Visual-Hügel (rechter Rand der Home-Ansicht) ---------- */
-// Ein kleiner Hügel sitzt am rechten Rand. Gedrückt halten, dann mit dem Finger hoch/runter fahren:
-// Jede Karte ist ein kleines schwarzes Pill mit lila Karten-Symbol und Kürzel. Das unter dem Finger wächst.
-// Nach links ziehen = rausziehen, loslassen öffnet die Karte.
-const HILL = { w: 78, rest: 11, peek: 72, hold: 230, pull: 64, commit: 150, ph: 38 };
-let hillY = null;
+// Kleiner Hügel am rechten Rand. Antippen (oder halten) öffnet die Kartenleiste, sie bleibt offen.
+// Mit dem Finger am rechten Rand hoch/runter fahren: Jede Karte ist ein kleines schwarzes Pill mit
+// lila Symbol und Kürzel, das unter dem Finger wächst. Nach links ziehen und loslassen öffnet die Karte.
+// Tippen neben die Leiste schließt sie wieder.
+const HILL = { w: 78, rest: 11, peek: 72, hold: 230, pull: 64, commit: 150, ph: 38, zone: 110 };
+let hillY = null, hillClose = null;
 const tagOf = c => String(c.tag || c.name || '').trim().slice(0, 3).toUpperCase();
 
 function bindHill() {
@@ -722,87 +723,120 @@ function bindHill() {
   const placeHill = y => { hillY = clampY(y); hill.style.transform = `translateY(${hillY}px)`; };
   placeHill(hillY ?? innerHeight * .42);
 
-  let s = null; // laufende Geste
-  const stop = () => { if (!s) return; clearTimeout(s.timer); cancelAnimationFrame(s.raf); hill.classList.remove('press'); };
+  let press = null; // Drücken auf dem Hügel, bevor die Leiste offen ist
+  let o = null;     // offene Leiste
 
-  function start() {
+  function openTrack(fy, gid, fx = innerWidth) {
     const cards = data.cards;
-    if (!cards.length) { stop(); s = null; toast('Noch keine Karten'); return; }
+    if (!cards.length) { toast('Noch keine Karten'); return; }
     const top = 110, bottom = innerHeight - 150, n = cards.length;
     const gap = Math.min(54, (bottom - top) / n), y0 = top + ((bottom - top) - gap * n) / 2;
     track.innerHTML = cards.map(c => `<div class="vcard"><span class="vic">${ic('card')}</span><b>${esc(tagOf(c))}</b></div>`).join('') + '<div class="vlabel"></div>';
-    Object.assign(s, { on: true, n, gap, y0, els: [...track.querySelectorAll('.vcard')], label: track.querySelector('.vlabel'),
-      m: new Array(n).fill(0), px: 0, active: -1, locked: false, past: false });
+    o = { n, gap, y0, els: [...track.querySelectorAll('.vcard')], label: track.querySelector('.vlabel'), m: new Array(n).fill(0),
+      px: 0, active: -1, locked: false, past: false, fx, fy, g: gid == null ? null : { id: gid }, tap: null, raf: 0 };
     track.classList.add('on'); scrim.classList.add('on'); hill.classList.add('away');
     setMenu(false); buzz(10);
-    s.raf = requestAnimationFrame(frame);
+    o.raf = requestAnimationFrame(frame);
   }
 
+  function closeTrack(openId) {
+    if (!o) return;
+    cancelAnimationFrame(o.raf);
+    const fy = o.fy; o = null;
+    track.classList.remove('on'); scrim.classList.remove('on'); hill.classList.remove('away', 'press');
+    placeHill(fy);
+    setTimeout(() => { if (!o) track.innerHTML = ''; }, 320);
+    if (openId) { buzz(12); openViewer(openId); }
+  }
+  hillClose = () => closeTrack();
+
   function frame() {
-    if (!s?.on) return;
-    const { n, gap, y0, els } = s, W = innerWidth;
-    const f = Math.max(0, Math.min(n - 1, (s.fy - y0) / gap - .5));
-    const near = s.locked ? s.active : Math.round(f);
-    if (near !== s.active && !s.locked) { s.active = near; buzz(4); }
+    if (!o) return;
+    const { n, gap, y0, els } = o, W = innerWidth;
+    const f = Math.max(0, Math.min(n - 1, (o.fy - y0) / gap - .5));
+    const near = o.locked ? o.active : Math.round(f);
+    if (near !== o.active) { if (o.active >= 0) buzz(4); o.active = near; }
     const k = still ? 1 : .24;
-    s.px += (Math.max(0, W - s.fx) - s.px) * (still ? 1 : .5);
+    o.px += (Math.max(0, W - o.fx) - o.px) * (still ? 1 : .5);
     els.forEach((el, i) => {
-      const d = Math.abs(i - (s.locked ? s.active : f));
+      const d = Math.abs(i - (o.locked ? o.active : f));
       const target = d >= 1.6 ? 0 : (Math.cos(d / 1.6 * Math.PI) + 1) / 2;
-      s.m[i] += (target - s.m[i]) * k;
-      const m = s.m[i], sc = .82 + .26 * m, held = s.locked && i === s.active;
+      o.m[i] += (target - o.m[i]) * k;
+      const m = o.m[i], sc = .82 + .26 * m, held = o.locked && i === o.active;
       let peek = HILL.rest + HILL.peek * m;
-      if (held) peek = Math.max(peek, s.px + 30);
+      if (held) peek = Math.max(peek, o.px + 30);
       const tx = HILL.w * sc - peek, y = y0 + i * gap + gap / 2 - HILL.ph / 2;
       el.style.transform = `translate(${tx.toFixed(1)}px, ${y.toFixed(1)}px) scale(${(held ? 1.12 : sc).toFixed(3)})`;
       el.style.zIndex = Math.round(10 + m * 20);
-      el.classList.toggle('lit', i === s.active && s.past);
+      el.classList.toggle('lit', i === o.active && o.past);
     });
-    const a = s.active;
+    const a = o.active;
     if (a >= 0) {
-      const am = s.m[a] ?? 0;
-      s.label.textContent = data.cards[a].name || 'Karte';
-      s.label.style.transform = `translate(${-(HILL.rest + HILL.peek * am + 14)}px, ${(y0 + a * gap + gap / 2 - 10).toFixed(1)}px)`;
-      s.label.style.opacity = s.locked ? 0 : Math.min(1, am * 1.4);
+      const am = o.m[a] ?? 0;
+      o.label.textContent = data.cards[a].name || 'Karte';
+      o.label.style.transform = `translate(${-(HILL.rest + HILL.peek * am + 14)}px, ${(y0 + a * gap + gap / 2 - 10).toFixed(1)}px)`;
+      o.label.style.opacity = o.locked ? 0 : Math.min(1, am * 1.4);
     }
-    s.raf = requestAnimationFrame(frame);
+    o.raf = requestAnimationFrame(frame);
   }
 
-  function finish(open) {
-    const id = open && s.active >= 0 ? data.cards[s.active].id : null;
-    stop();
-    track.classList.remove('on'); scrim.classList.remove('on'); hill.classList.remove('away');
-    placeHill(s.fy);
-    s = null;
-    setTimeout(() => { if (!s) track.innerHTML = ''; }, 320);
-    if (id) { buzz(12); openViewer(id); }
+  // Finger-Bewegung in der offenen Leiste (hoch/runter wählen, nach links rausziehen)
+  function gMove(e) {
+    if (!o?.g || e.pointerId !== o.g.id) return;
+    o.fx = e.clientX; o.fy = e.clientY;
+    const out = innerWidth - o.fx;
+    if (!o.locked && out > HILL.pull) { o.locked = true; buzz(6); }
+    else if (o.locked && out < HILL.pull * .5) { o.locked = false; o.past = false; }
+    const past = o.locked && out > HILL.commit;
+    if (past !== o.past) { o.past = past; if (past) buzz(12); }
+  }
+  function gUp(e) {
+    if (!o?.g || e.pointerId !== o.g.id) return;
+    if (e.type === 'pointerup' && o.locked && o.past) return closeTrack(data.cards[o.active].id);
+    o.g = null; o.locked = false; o.past = false; o.fx = innerWidth;
   }
 
+  // Hügel: antippen oder halten
+  const endPress = () => { if (press) { clearTimeout(press.timer); press = null; } hill.classList.remove('press'); };
   hill.addEventListener('pointerdown', e => {
-    if (tab !== 'home' || s) return;
+    if (tab !== 'home' || o || press) return;
     try { hill.setPointerCapture(e.pointerId); } catch {}
-    s = { id: e.pointerId, x0: e.clientX, y0: e.clientY, fx: e.clientX, fy: e.clientY, on: false };
+    const p = press = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY };
     hill.classList.add('press');
-    s.timer = setTimeout(start, HILL.hold);
+    p.timer = setTimeout(() => { if (press !== p) return; press = null; hill.classList.remove('press'); openTrack(p.y, p.id, p.x); }, HILL.hold);
   });
   hill.addEventListener('pointermove', e => {
-    if (!s || e.pointerId !== s.id) return;
-    s.fx = e.clientX; s.fy = e.clientY;
-    if (!s.on) { if (Math.hypot(s.fx - s.x0, s.fy - s.y0) > 12) { stop(); s = null; } return; }
-    const out = innerWidth - s.fx;
-    if (!s.locked && out > HILL.pull) { s.locked = true; buzz(6); }
-    else if (s.locked && out < HILL.pull * .5) { s.locked = false; s.past = false; }
-    const past = s.locked && out > HILL.commit;
-    if (past !== s.past) { s.past = past; if (past) buzz(12); }
+    if (press && e.pointerId === press.id) {
+      press.x = e.clientX; press.y = e.clientY;
+      if (Math.hypot(press.x - press.x0, press.y - press.y0) > 12) endPress();
+    } else gMove(e);
   });
-  const up = e => {
-    if (!s || e.pointerId !== s.id) return;
-    if (!s.on) { stop(); s = null; return; }
-    finish(e.type === 'pointerup' && s.locked && s.past);
+  const hillUp = e => {
+    if (press && e.pointerId === press.id) { const tap = e.type === 'pointerup'; endPress(); if (tap) openTrack(hillY, null); }
+    else gUp(e);
   };
-  hill.addEventListener('pointerup', up); hill.addEventListener('pointercancel', up);
+  hill.addEventListener('pointerup', hillUp); hill.addEventListener('pointercancel', hillUp);
   hill.addEventListener('contextmenu', e => e.preventDefault());
+
+  // Offene Leiste: am rechten Rand fahren, sonst antippen = schließen
+  scrim.addEventListener('pointerdown', e => {
+    if (!o || o.g || o.tap) return;
+    if (innerWidth - e.clientX <= HILL.zone) {
+      try { scrim.setPointerCapture(e.pointerId); } catch {}
+      o.g = { id: e.pointerId }; o.fx = e.clientX; o.fy = e.clientY; o.locked = false; o.past = false;
+    } else o.tap = { id: e.pointerId, x: e.clientX, y: e.clientY };
+  });
+  scrim.addEventListener('pointermove', e => {
+    if (o?.tap && e.pointerId === o.tap.id) { if (Math.hypot(e.clientX - o.tap.x, e.clientY - o.tap.y) > 12) o.tap = null; }
+    else gMove(e);
+  });
+  const scrimUp = e => {
+    if (o?.tap && e.pointerId === o.tap.id) { const tap = e.type === 'pointerup'; o.tap = null; if (tap) closeTrack(); }
+    else gUp(e);
+  };
+  scrim.addEventListener('pointerup', scrimUp); scrim.addEventListener('pointercancel', scrimUp);
 }
+addEventListener('keydown', e => { if (e.key === 'Escape') hillClose?.(); });
 
 /* ---------- Klicks ---------- */
 app.addEventListener('click', e => {
