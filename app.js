@@ -31,6 +31,7 @@ const ic = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${P[n]}<
 /* ---------- Zustand ---------- */
 const empty = () => ({ v: 1, notes: [], todos: [], cards: [], settings: { autolock: 60 } });
 let data = null, tab = 'home', saveT = null, hiddenAt = 0, bioOk = false, fails = 0, waitUntil = 0, enter = true, menuOpen = false;
+const freshIds = new Set();
 const sheets = [];
 const COLORS = ['yellow', 'orange', 'pink', 'violet', 'blue', 'green'];
 
@@ -205,6 +206,7 @@ const TABS = [
 
 function renderMain() {
   app.innerHTML = `
+    <div class="glowwrap" id="glowwrap" aria-hidden="true"><div class="glow"></div><div class="glow g2"></div></div>
     <main class="screen" id="screen"></main>
     <nav class="tabs" aria-label="Bereiche">
       ${TABS.map(t => `<button data-tab="${t.id}" style="--a:var(--${t.color})">${ic(t.icon)}<span>${t.label}</span></button>`).join('')}
@@ -223,6 +225,7 @@ function renderMain() {
 function renderTab() {
   const screen = $('#screen'); if (!screen || !data) return;
   setMenu(false);
+  $('#glowwrap')?.classList.toggle('on', tab === 'home');
   screen.innerHTML = { home: viewHome, notes: viewNotes, todos: viewTodos, cards: viewCards }[tab]();
   document.querySelectorAll('[data-tab]').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   const fab = $('#fab');
@@ -241,7 +244,7 @@ const header = title => `<header class="top"><h1>${title}</h1><div class="hbtns"
 
 const fmtDay = ts => new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' }).format(ts);
 
-const greetFor = h => h >= 5 && h < 11 ? 'Guten Morgen' : h >= 11 && h < 17 ? 'Guten Tag' : h >= 17 && h < 22 ? 'Guten Abend' : 'Gute Nacht';
+const greetFor = h => h >= 5 && h < 11 ? 'Guten Morgen' : h >= 11 && h < 17 ? 'Guten Tag' : 'Guten Abend';
 function isoWeek(d) {
   const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
@@ -268,8 +271,15 @@ setInterval(tickHome, 1000);
 function viewHome() {
   const p = homeParts(), cls = enter ? ' enter' : '';
   enter = false;
-  return `<div class="glowwrap" aria-hidden="true"><div class="glow"></div><div class="glow g2"></div></div>
-  <div class="home${cls}">
+  const open = data.todos.filter(t => !t.done).sort((a, b) => b.created - a.created);
+  const shown = open.slice(0, 6);
+  const todos = open.length ? `<section class="htodos" id="htodos" aria-label="Offene To-dos">
+      <div class="hsec"><span>To-dos</span><b id="hcount">${open.length}</b></div>
+      <ul class="todos">${shown.map(t => todoItem(t, true)).join('')}</ul>
+      ${open.length > shown.length ? `<button class="more" data-go="todos">${open.length - shown.length} weitere anzeigen</button>` : ''}
+    </section>` : '';
+  freshIds.clear();
+  return `<div class="home${cls}">
     <div class="hometop"><div class="hbtns">
       <button class="iconbtn" data-act="settings" aria-label="Einstellungen">${ic('gear')}</button>
       <button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button></div></div>
@@ -277,6 +287,7 @@ function viewHome() {
     <p class="hdate" id="hDate">${p.date}</p>
     <time class="htime" id="hTime">${p.time}</time>
     <p class="hweek" id="hWeek">${p.week}</p>
+    ${todos}
   </div>`;
 }
 
@@ -352,11 +363,11 @@ function openNote(id) {
 }
 
 /* ---------- To-dos ---------- */
-function todoItem(t) {
-  return `<li class="todo ${t.done ? 'done' : ''}">
+function todoItem(t, bare) {
+  return `<li class="todo ${t.done ? 'done' : ''} ${freshIds.has(t.id) ? 'pop' : ''}">
     <button class="chk" role="checkbox" aria-checked="${t.done}" data-toggle="${t.id}" aria-label="${esc(t.text)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4L18 8"/></svg></button>
     <span class="tt">${esc(t.text)}</span>
-    <button class="iconbtn sm" data-deltodo="${t.id}" aria-label="Aufgabe löschen">${ic('x')}</button></li>`;
+    ${bare ? '' : `<button class="iconbtn sm" data-deltodo="${t.id}" aria-label="Aufgabe löschen">${ic('x')}</button>`}</li>`;
 }
 function viewTodos() {
   const open = data.todos.filter(t => !t.done).sort((a, b) => b.created - a.created);
@@ -385,8 +396,26 @@ function toggleTodo(id, btn) {
   const t = data.todos.find(x => x.id === id); if (!t) return;
   t.done = !t.done; t.doneAt = Date.now(); save();
   buzz(t.done ? 12 : 6);
-  btn.setAttribute('aria-checked', t.done); btn.closest('.todo').classList.toggle('done', t.done);
+  const li = btn.closest('.todo');
+  btn.setAttribute('aria-checked', t.done); li.classList.toggle('done', t.done);
+  if (tab === 'home') { setTimeout(() => { if (t.done) collapseTodo(li); }, 520); return; }
   setTimeout(renderTab, 420);
+}
+function collapseTodo(li) {
+  if (!li.isConnected) return;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  li.style.height = li.offsetHeight + 'px'; li.offsetHeight; // Reflow, damit die Höhe animiert
+  li.classList.add('out');
+  const open = data.todos.filter(x => !x.done).length;
+  const cnt = $('#hcount'); if (cnt) cnt.textContent = open;
+  setTimeout(() => {
+    li.remove();
+    const sec = $('#htodos'); if (!sec) return;
+    if (!sec.querySelector('.todo')) {
+      if (open > 0) return renderTab(); // weitere offene To-dos nachladen
+      sec.classList.add('gone'); setTimeout(() => sec.remove(), 450);
+    }
+  }, reduce ? 0 : 420);
 }
 
 /* ---------- Visualisierung ---------- */
@@ -585,7 +614,8 @@ function openQuickTodo() {
   $('#qf', el).addEventListener('submit', e => {
     e.preventDefault();
     const v = input.value.trim(); if (!v) return;
-    data.todos.push({ id: uid(), text: v, done: false, created: Date.now() });
+    const nt = { id: uid(), text: v, done: false, created: Date.now() };
+    data.todos.push(nt); freshIds.add(nt.id);
     save(); buzz(10); input.value = ''; input.focus();
     const li = document.createElement('li');
     li.innerHTML = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4L18 8"/></svg><span>${esc(v)}</span>`;
