@@ -30,7 +30,7 @@ const ic = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${P[n]}<
 
 /* ---------- Zustand ---------- */
 const empty = () => ({ v: 1, notes: [], todos: [], cards: [], settings: { autolock: 60 } });
-let data = null, tab = 'home', saveT = null, hiddenAt = 0, bioOk = false, fails = 0, waitUntil = 0;
+let data = null, tab = 'home', saveT = null, hiddenAt = 0, bioOk = false, fails = 0, waitUntil = 0, enter = true, menuOpen = false;
 const sheets = [];
 const COLORS = ['yellow', 'orange', 'pink', 'violet', 'blue', 'green'];
 
@@ -209,18 +209,28 @@ function renderMain() {
     <nav class="tabs" aria-label="Bereiche">
       ${TABS.map(t => `<button data-tab="${t.id}" style="--a:var(--${t.color})">${ic(t.icon)}<span>${t.label}</span></button>`).join('')}
     </nav>
-    <button class="fab" id="fab">${ic('plus')}</button>`;
+    <div class="scrim" id="scrim"></div>
+    <div class="fabmenu" id="fabmenu" role="menu" aria-label="Hinzufügen" inert>
+      <button class="fm-item" role="menuitem" data-add="card" style="--i:2;--a:var(--violet)"><span>Visualisierung</span><span class="fm-ic">${ic('card')}</span></button>
+      <button class="fm-item" role="menuitem" data-add="todo" style="--i:1;--a:var(--orange)"><span>To-do</span><span class="fm-ic">${ic('check')}</span></button>
+      <button class="fm-item" role="menuitem" data-add="note" style="--i:0;--a:var(--yellow)"><span>Notiz</span><span class="fm-ic">${ic('note')}</span></button>
+    </div>
+    <button class="fab" id="fab" aria-label="Hinzufügen">${ic('plus')}</button>`;
+  enter = true;
   renderTab();
 }
 
 function renderTab() {
   const screen = $('#screen'); if (!screen || !data) return;
+  setMenu(false);
   screen.innerHTML = { home: viewHome, notes: viewNotes, todos: viewTodos, cards: viewCards }[tab]();
   document.querySelectorAll('[data-tab]').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   const fab = $('#fab');
-  const fabCfg = { notes: ['yellow', 'Neue Notiz'], todos: ['orange', 'Neue Aufgabe'], cards: ['violet', 'Neue Karte'] }[tab];
+  const fabCfg = { home: ['white', 'Hinzufügen'], notes: ['yellow', 'Neue Notiz'], todos: ['orange', 'Neue Aufgabe'], cards: ['violet', 'Neue Karte'] }[tab];
   fab.hidden = !fabCfg;
   if (fabCfg) { fab.style.setProperty('--a', `var(--${fabCfg[0]})`); fab.setAttribute('aria-label', fabCfg[1]); }
+  if (tab === 'home') { fab.setAttribute('aria-haspopup', 'menu'); fab.setAttribute('aria-expanded', 'false'); }
+  else { fab.removeAttribute('aria-haspopup'); fab.removeAttribute('aria-expanded'); }
   if (tab === 'notes') bindNoteSearch();
   if (tab === 'todos') bindTodoForm();
 }
@@ -231,31 +241,43 @@ const header = title => `<header class="top"><h1>${title}</h1><div class="hbtns"
 
 const fmtDay = ts => new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' }).format(ts);
 
+const greetFor = h => h >= 5 && h < 11 ? 'Guten Morgen' : h >= 11 && h < 17 ? 'Guten Tag' : h >= 17 && h < 22 ? 'Guten Abend' : 'Gute Nacht';
+function isoWeek(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  return Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 864e5 + 1) / 7);
+}
+function homeParts() {
+  const d = new Date();
+  return {
+    hello: greetFor(d.getHours()),
+    date: new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }).format(d),
+    week: `Kalenderwoche ${isoWeek(d)} · ${d.getFullYear()}`,
+    time: new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' }).format(d),
+  };
+}
+function tickHome() {
+  if (tab !== 'home' || !$('#hHello')) return;
+  const p = homeParts();
+  [['#hHello', p.hello], ['#hDate', p.date], ['#hWeek', p.week], ['#hTime', p.time]].forEach(([id, v]) => {
+    const el = $(id); if (el.textContent !== v) el.textContent = v;
+  });
+}
+setInterval(tickHome, 1000);
+
 function viewHome() {
-  const open = data.todos.filter(t => !t.done), total = data.todos.length;
-  const pct = total ? Math.round((total - open.length) / total * 100) : 0;
-  const h = new Date().getHours();
-  const greet = h < 11 ? 'Guten Morgen' : h < 18 ? 'Hallo' : 'Guten Abend';
-  const lastNote = [...data.notes].sort((a, b) => b.updated - a.updated)[0];
-  const card = data.cards[0];
-  const date = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
-  return `${header('Notiz')}
-  <div class="pills">
-    <div class="pill hero"><span class="kicker">${date}</span><span class="big">${greet}</span></div>
-    <button class="pill" data-go="todos"><span class="ring" style="--p:${pct}" aria-hidden="true"></span><span><b class="c-orange">${open.length}</b> offen</span></button>
-    <button class="pill" data-go="notes"><span class="dot" style="--a:var(--yellow)"></span><span><b>${data.notes.length}</b> Notizen</span></button>
-    ${lastNote ? `<button class="pill wide" data-note="${lastNote.id}"><span class="dot" style="--a:var(--${lastNote.color})"></span><span class="clip"><small>Zuletzt</small>${esc(lastNote.title || firstLine(lastNote.body) || 'Ohne Titel')}</span></button>` : ''}
-    <button class="pill wide walletpill" data-go="cards">
-      <span class="mini">${card ? cardMarkup(card) : '<span class="ghost"></span>'}</span>
-      <span><small>Visualisierung</small>${data.cards.length ? `${data.cards.length} ${data.cards.length === 1 ? 'Karte' : 'Karten'}` : 'Noch keine Karte'}</span>
-    </button>
-    <div class="pill"><span class="dot pulse" style="--a:var(--green)"></span><span>${Vault.hasBio ? 'Fingerabdruck an' : 'Code-Sperre an'}</span></div>
-    ${bioOk && !Vault.hasBio ? `<button class="pill" data-act="bio" style="--a:var(--green)">${ic('finger')}<span>Fingerabdruck einrichten</span></button>` : ''}
-    <button class="pill act" data-new="note" style="--a:var(--yellow)">${ic('plus')}Notiz</button>
-    <button class="pill act" data-new="todo" style="--a:var(--orange)">${ic('plus')}Aufgabe</button>
-    <button class="pill act" data-new="card" style="--a:var(--violet)">${ic('plus')}Karte</button>
-  </div>
-  ${open.length ? `<h2 class="sec">Als Nächstes</h2><ul class="todos">${open.slice(0, 3).map(todoItem).join('')}</ul>` : ''}`;
+  const p = homeParts(), cls = enter ? ' enter' : '';
+  enter = false;
+  return `<div class="glowwrap" aria-hidden="true"><div class="glow"></div><div class="glow g2"></div></div>
+  <div class="home${cls}">
+    <div class="hometop"><div class="hbtns">
+      <button class="iconbtn" data-act="settings" aria-label="Einstellungen">${ic('gear')}</button>
+      <button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button></div></div>
+    <h1 class="hello" id="hHello">${p.hello}</h1>
+    <p class="hdate" id="hDate">${p.date}</p>
+    <time class="htime" id="hTime">${p.time}</time>
+    <p class="hweek" id="hWeek">${p.week}</p>
+  </div>`;
 }
 
 /* ---------- Notizen ---------- */
@@ -532,11 +554,51 @@ async function importFile(e) {
   catch { toast('Das ist keine gültige Notiz-Backup-Datei'); }
 }
 
+/* ---------- Plus-Menü ---------- */
+function setMenu(open, focusFirst) {
+  const m = $('#fabmenu'), sc = $('#scrim'), f = $('#fab');
+  if (!m) return;
+  if (open === menuOpen && m.classList.contains('open') === open) return;
+  menuOpen = open;
+  m.classList.toggle('open', open); sc.classList.toggle('open', open);
+  m.toggleAttribute('inert', !open);
+  if (f.hasAttribute('aria-haspopup')) f.setAttribute('aria-expanded', open);
+  if (open) { buzz(8); if (focusFirst) m.querySelector('[data-add="note"]').focus(); }
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && menuOpen) { setMenu(false); $('#fab')?.focus(); } });
+app.addEventListener('click', e => { if (e.target.id === 'scrim') setMenu(false); });
+
+function openQuickTodo() {
+  const kb = () => {
+    const v = window.visualViewport; if (!v) return;
+    el.style.setProperty('--kb', Math.max(0, innerHeight - v.height - v.offsetTop) + 'px');
+  };
+  const el = openSheet(`
+    <div class="q-bd" data-close></div>
+    <form class="q-card" id="qf" autocomplete="off">
+      <div class="q-top"><h2>Neues To-do</h2><button type="button" class="iconbtn sm" data-close aria-label="Schließen">${ic('x')}</button></div>
+      <div class="addrow"><input id="qt" placeholder="Was steht an?" aria-label="Neues To-do" enterkeyhint="done" maxlength="300"><button class="addbtn" aria-label="Hinzufügen">${ic('plus')}</button></div>
+      <ul class="added" id="added" aria-live="polite"></ul>
+    </form>`, { label: 'Neues To-do', cls: 'quick', onClose: () => window.visualViewport?.removeEventListener('resize', kb) });
+  window.visualViewport?.addEventListener('resize', kb);
+  const input = $('#qt', el), list = $('#added', el);
+  $('#qf', el).addEventListener('submit', e => {
+    e.preventDefault();
+    const v = input.value.trim(); if (!v) return;
+    data.todos.push({ id: uid(), text: v, done: false, created: Date.now() });
+    save(); buzz(10); input.value = ''; input.focus();
+    const li = document.createElement('li');
+    li.innerHTML = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4L18 8"/></svg><span>${esc(v)}</span>`;
+    list.prepend(li); while (list.children.length > 3) list.lastChild.remove();
+  });
+  setTimeout(() => input.focus(), 380);
+}
+
 /* ---------- Klicks ---------- */
 app.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || !data) return;
-  if (b.dataset.tab) { tab = b.dataset.tab; renderTab(); scrollTo(0, 0); return; }
-  if (b.dataset.go) { tab = b.dataset.go; renderTab(); scrollTo(0, 0); return; }
+  if (b.dataset.tab) { tab = b.dataset.tab; enter = true; renderTab(); scrollTo(0, 0); return; }
+  if (b.dataset.go) { tab = b.dataset.go; enter = true; renderTab(); scrollTo(0, 0); return; }
   if (b.dataset.note) return openNote(b.dataset.note);
   if (b.dataset.card) return openViewer(b.dataset.card);
   if (b.dataset.toggle) return toggleTodo(b.dataset.toggle, b);
@@ -544,7 +606,13 @@ app.addEventListener('click', e => {
   if (b.dataset.new === 'note') return openNote();
   if (b.dataset.new === 'card') return openCardForm();
   if (b.dataset.new === 'todo') { tab = 'todos'; renderTab(); return $('#tt').focus(); }
-  if (b.id === 'fab') { if (tab === 'notes') openNote(); else if (tab === 'cards') openCardForm(); else if (tab === 'todos') $('#tt').focus(); return; }
+  if (b.dataset.add) {
+    const k = b.dataset.add;
+    setMenu(false); $('#fab').focus({ preventScroll: true });
+    setTimeout(() => (k === 'note' ? openNote() : k === 'todo' ? openQuickTodo() : openCardForm()), 150);
+    return;
+  }
+  if (b.id === 'fab') { if (tab === 'home') return setMenu(!menuOpen, e.detail === 0); if (tab === 'notes') openNote(); else if (tab === 'cards') openCardForm(); else if (tab === 'todos') $('#tt').focus(); return; }
   const act = b.dataset.act;
   if (act === 'lock') return lockNow();
   if (act === 'settings') return openSettings();

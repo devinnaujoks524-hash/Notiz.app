@@ -1,6 +1,6 @@
 // Offline-Unterstützung: App-Dateien werden auf dem Handy zwischengespeichert.
 // Bei jeder neuen Version VERSION erhöhen.
-const VERSION = 'notiz-v1';
+const VERSION = 'notiz-v2';
 const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'vault.js', 'viz.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
 
