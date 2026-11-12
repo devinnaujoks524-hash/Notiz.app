@@ -269,20 +269,6 @@ function menuHtml(t) {
     ? item('card:mail', 'E-Mail', 'mail', 2, 'blue') + item('card:member', 'Kundenkarte', 'bag', 1, 'green') + item('card:bank', 'Bankkarte', 'card', 0, 'violet')
     : item('card', 'Visualisierung', 'card', 2, 'violet') + item('todo', 'To-do', 'check', 1, 'orange') + item('note', 'Notiz', 'note', 0, 'yellow');
 }
-const tileIcon = c => c.type === 'mail' ? 'mail' : c.type === 'member' ? 'bag' : 'card';
-function tileSub(c) {
-  if (c.type === 'mail') return c.email || 'E-Mail';
-  if (c.type === 'member') return 'Kundenkarte';
-  const l4 = String(c.number || '').replace(/\D/g, '').slice(-4) || c.last4;
-  return l4 ? '•••• ' + l4 : (c.network || 'Bankkarte');
-}
-function tileMarkup(c) {
-  const [a, b, ink] = THEMES[c.theme] || THEMES.sunset;
-  return `<button class="ctile" data-card="${c.id}" style="--a:${a};--b:${b};--ink:${ink}" aria-label="${esc(c.name || 'Karte')} öffnen">
-    <span class="ct-ic">${ic(tileIcon(c))}</span>
-    <span class="ct-tx"><b>${esc(c.name || 'Karte')}</b><small>${esc(tileSub(c))}</small></span></button>`;
-}
-
 function renderTab() {
   const screen = $('#screen'); if (!screen || !data) return;
   setMenu(false);
@@ -504,7 +490,7 @@ function collapseTodo(li) {
 function viewCards() {
   return `${header('Visualisierung')}
     ${data.cards.length ? `<p class="sub left">Tippe auf eine Karte, um sie in 3D anzusehen.</p>
-    <div class="cgrid">${data.cards.map(tileMarkup).join('')}</div>`
+    <div class="cgrid">${data.cards.map(c => `<button class="cardmini" data-card="${c.id}" aria-label="${esc(c.name || 'Karte')} öffnen">${cardMarkup(c)}</button>`).join('')}</div>`
       : emptyState('card', 'Noch keine Karten', 'Füge Bankkarten, Kundenkarten oder E-Mail-Konten hinzu – sie schweben dann in 3D.')}`;
 }
 
