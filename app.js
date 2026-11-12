@@ -407,6 +407,7 @@ function openNote(id) {
       <button class="iconbtn" data-close aria-label="Zurück">${ic('back')}</button><span class="grow"></span>
       <button class="iconbtn" id="pin" aria-pressed="${n.pinned}" aria-label="Anheften">${ic('pin')}</button>
       <button class="iconbtn" id="del" aria-label="Notiz löschen">${ic('trash')}</button>
+      <button class="btn primary sm" id="nsave">Sichern</button>
     </div>
     <input class="ntitle" id="nt" placeholder="Titel" aria-label="Titel" value="${esc(n.title)}">
     <div class="swatches" role="radiogroup" aria-label="Farbe">
@@ -437,6 +438,12 @@ function openNote(id) {
     }
     data.notes = data.notes.filter(x => x.id !== n.id); n.title = n.body = '';
     history.back(); toast('Notiz gelöscht');
+  });
+  $('#nsave', el).addEventListener('click', () => {
+    const filled = n.title.trim() || n.body.trim();
+    if (filled) touch();
+    buzz(12); history.back();
+    toast(filled ? 'Notiz gespeichert' : 'Leere Notiz verworfen');
   });
   if (isNew) setTimeout(() => $('#nb', el).focus(), 280);
 }
