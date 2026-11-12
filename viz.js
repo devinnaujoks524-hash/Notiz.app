@@ -13,6 +13,11 @@ const grp = s => String(s ?? '').replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').t
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 function front(c) {
+  if (c.type === 'mail') return `
+    <i class="cm-fold l"></i><i class="cm-fold r"></i><i class="cm-fold b"></i><i class="cm-flap"></i>
+    <div class="cf-top cm-top"><span class="cf-brand">${esc(c.name || 'E-Mail')}</span><span class="cf-net">MAIL</span></div>
+    <span class="cm-seal">${esc((c.name || '@').trim().charAt(0).toUpperCase() || '@')}</span>
+    <div class="cm-addr"><small>An</small><span>${esc(c.email || 'name@beispiel.de')}</span></div>`;
   if (c.type === 'member') return `
     <div class="cf-top"><span class="cf-brand">${esc(c.name || 'Kundenkarte')}</span><span class="cf-net">MITGLIED</span></div>
     <div class="cf-member">${esc(c.member || '—')}</div>
@@ -27,9 +32,19 @@ function front(c) {
     </div>`;
 }
 
+function mailBack(c) {
+  return `<div class="cface back mailback"><i class="cm-open"></i>
+    <div class="cm-letter"><small>Passwort</small><p class="pw">••••••••</p><small class="gap">E-Mail</small><p class="ad">${esc(c.email || '')}</p></div></div>`;
+}
+
 export function cardMarkup(c, mode = 'flat') {
   const [a, b, ink] = THEMES[c.theme] || THEMES.sunset;
   const style = `--a:${a};--b:${b};--ink:${ink}`;
+  if (mode === '3d' && c.type === 'mail') return `
+    <div class="card3d" style="${style}">
+      <div class="cface front">${front(c)}<div class="sheen"></div></div>
+      ${mailBack(c)}
+    </div>`;
   if (mode === '3d') return `
     <div class="card3d" style="${style}">
       <div class="cface front">${front(c)}<div class="sheen"></div></div>

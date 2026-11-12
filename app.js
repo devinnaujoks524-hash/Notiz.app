@@ -24,6 +24,8 @@ const P = {
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 7.5l8 6 8-6"/>',
+  eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/>',
 };
 const ic = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
@@ -480,13 +482,15 @@ function viewCards() {
   return `${header('Visualisierung')}
     ${data.cards.length ? `<p class="sub left">Tippe auf eine Karte, um sie in 3D anzusehen.</p>
     <div class="stack">${data.cards.map(c => `<button class="cardthumb" data-card="${c.id}" aria-label="${esc(c.name || 'Karte')} öffnen">${cardMarkup(c)}</button>`).join('')}</div>`
-      : emptyState('card', 'Noch keine Karten', 'Füge deine Bankkarte mit Nummer und IBAN hinzu – sie schwebt dann in 3D.')}`;
+      : emptyState('card', 'Noch keine Karten', 'Füge Bankkarten, Kundenkarten oder E-Mail-Konten hinzu – sie schweben dann in 3D.')}`;
 }
 
 function openViewer(id) {
   const c = data.cards.find(x => x.id === id); if (!c) return;
   const info = c.type === 'member'
     ? [['Geschäft', c.name], ['Mitgliedsnr.', c.member, true], ['Inhaber', c.holder]]
+    : c.type === 'mail'
+    ? [['Anbieter', c.name], ['E-Mail', c.email, true], ['Passwort', c.pass, 'secret']]
     : [['Bank', c.name], ['Kartennummer', c.number ? c.number.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim() : c.last4 && '•••• ' + c.last4, !!c.number, c.number?.replace(/\s/g, '')],
        ['IBAN', c.iban && c.iban.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim(), true, c.iban?.replace(/\s/g, '')], ['Inhaber', c.holder], ['Gültig bis', c.exp], ['Netzwerk', c.network]];
   let stop;
@@ -501,7 +505,7 @@ function openViewer(id) {
     </div>
     <p class="hint">Ziehen zum Drehen · Tippen zum Umdrehen</p>
     <div class="pills info">
-       ${info.filter(i => i[1]).map(([k, v, copy, raw]) => `<div class="pill${copy ? ' wide' : ''}"><span class="clip"><small>${k}</small>${esc(v)}</span>${copy ? `<button class="iconbtn sm" data-copy="${esc(raw || v)}" aria-label="${k} kopieren">${ic('copy')}</button>` : ''}</div>`).join('')}
+       ${info.filter(i => i[1]).map(([k, v, copy, raw]) => `<div class="pill${copy ? ' wide' : ''}"><span class="clip"><small>${k}</small>${copy === 'secret' ? `<span class="pwsec" data-secret="${esc(v)}">••••••••</span>` : esc(v)}</span>${copy === 'secret' ? `<button class="iconbtn sm" data-reveal aria-label="Passwort anzeigen">${ic('eye')}</button>` : ''}${copy ? `<button class="iconbtn sm" data-copy="${esc(raw || v)}" aria-label="${k} kopieren">${ic('copy')}</button>` : ''}</div>`).join('')}
       ${c.note ? `<div class="pill wide"><span class="clip multi"><small>Notiz</small>${esc(c.note)}</span></div>` : ''}
     </div>`, { label: 'Karte ansehen', cls: 'viewer', onClose: () => stop?.() });
   stop = mountViewer($('#stage', el));
@@ -510,14 +514,20 @@ function openViewer(id) {
     if (!(await dialog({ title: 'Karte löschen?', body: 'Das kann nicht rückgängig gemacht werden.', ok: 'Löschen', danger: true }))) return;
     data.cards = data.cards.filter(x => x.id !== c.id); save(); history.back(); toast('Karte gelöscht');
   });
+  el.querySelectorAll('[data-reveal]').forEach(b => b.addEventListener('click', () => {
+    const s = b.closest('.pill').querySelector(".pwsec"), on = s.dataset.on === '1';
+    s.textContent = on ? '••••••••' : s.dataset.secret; s.dataset.on = on ? '0' : '1';
+    b.setAttribute('aria-label', on ? 'Passwort anzeigen' : 'Passwort verbergen');
+  }));
   el.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(b.dataset.copy); toast('Kopiert'); } catch { toast('Kopieren nicht möglich'); }
   }));
 }
 
+const WARN_CARD = 'Alles bleibt verschlüsselt auf deinem Handy. PIN und Prüfnummer (CVV) gibt es hier bewusst nicht – die merkst du dir besser selbst.';
 function openCardForm(id) {
   const orig = data.cards.find(x => x.id === id);
-  const c = orig ? { ...orig } : { id: uid(), type: 'bank', theme: 'sunset', name: '', holder: '', number: '', iban: '', exp: '', network: 'Visa', member: '', note: '' };
+  const c = orig ? { ...orig } : { id: uid(), type: 'bank', theme: 'sunset', name: '', holder: '', number: '', iban: '', exp: '', network: 'Visa', member: '', email: '', pass: '', note: '' };
   const el = openSheet(`
     <div class="sheet-top">
       <button class="iconbtn" data-close aria-label="Abbrechen">${ic('x')}</button>
@@ -526,7 +536,7 @@ function openCardForm(id) {
     </div>
     <div class="preview" id="pv"></div>
     <div class="seg" role="radiogroup" aria-label="Art der Karte">
-      <button role="radio" data-type="bank">Bankkarte</button><button role="radio" data-type="member">Kundenkarte</button>
+      <button role="radio" data-type="bank">Bankkarte</button><button role="radio" data-type="member">Kundenkarte</button><button role="radio" data-type="mail">E-Mail</button>
     </div>
     <form id="cf" class="form"></form>
     <div class="swatches big" role="radiogroup" aria-label="Design">
@@ -539,16 +549,22 @@ function openCardForm(id) {
     bank: [['name', 'Bank / Name der Karte', 'text', 'z. B. Sparkasse'], ['holder', 'Inhaber', 'text', 'Name auf der Karte'],
            ['number', 'Kartennummer', 'numeric', '1234 5678 9012 3456', 23], ['iban', 'IBAN', 'text', 'DE00 0000 0000 0000 0000 00', 42],
            ['exp', 'Gültig bis', 'numeric', 'MM/JJ', 5], ['network', 'Netzwerk', 'select'], ['note', 'Notiz (Rückseite)', 'area', 'z. B. Sperr-Notruf 116 116']],
+    mail: [['name', 'Anbieter', 'text', 'z. B. Gmail'], ['email', 'E-Mail-Adresse', 'email', 'name@beispiel.de'],
+           ['pass', 'Passwort', 'secret', ''], ['note', 'Notiz (Rückseite)', 'area', '']],
     member: [['name', 'Geschäft', 'text', 'z. B. Fitnessstudio'], ['holder', 'Inhaber', 'text', 'Dein Name'],
              ['member', 'Mitgliedsnummer', 'text', ''], ['note', 'Notiz (Rückseite)', 'area', '']],
   };
   const renderForm = () => {
     $('#cf', el).innerHTML = F[c.type].map(([k, label, kind, ph, max]) => {
       if (kind === 'select') return `<label class="field"><span>${label}</span><select name="${k}">${['Visa', 'Mastercard', 'Girocard', 'Amex', 'Andere'].map(o => `<option ${c[k] === o ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
+      if (kind === 'email') return `<label class="field"><span>${label}</span><input name="${k}" type="email" inputmode="email" value="${esc(c[k])}" placeholder="${ph}" autocomplete="off" autocapitalize="off" spellcheck="false"></label>`;
+      if (kind === 'secret') return `<label class="field"><span>${label}</span><input name="${k}" type="password" value="${esc(c[k])}" placeholder="${ph}" autocomplete="new-password" autocapitalize="off" spellcheck="false"></label>`;
       if (kind === 'area') return `<label class="field"><span>${label}</span><textarea name="${k}" rows="2" placeholder="${ph}">${esc(c[k])}</textarea></label>`;
       return `<label class="field"><span>${label}</span><input name="${k}" value="${esc(c[k])}" placeholder="${ph}" ${kind === 'numeric' ? 'inputmode="numeric"' : ''} ${max ? `maxlength="${max}"` : ''} autocomplete="off"></label>`;
     }).join('');
     el.querySelectorAll('[data-type]').forEach(b => b.setAttribute('aria-checked', b.dataset.type === c.type));
+    const w = el.querySelector('.warn span');
+    if (w) w.textContent = c.type === 'mail' ? 'Alles bleibt verschlüsselt auf deinem Handy. Das Passwort wird nirgends hingeschickt und nur angezeigt, wenn du es in der Karte einblendest.' : WARN_CARD;
   };
   const renderPrev = () => {
     $('#pv', el).innerHTML = cardMarkup(c);
@@ -567,6 +583,7 @@ function openCardForm(id) {
   $('#save', el).addEventListener('click', () => {
     const err = $('#ferr', el);
     if (!c.name.trim()) return (err.textContent = 'Gib der Karte einen Namen.');
+    if (c.type === 'mail' && !String(c.email).trim()) return (err.textContent = 'Gib die E-Mail-Adresse ein.');
     if (orig) Object.assign(orig, c); else data.cards.push(c);
     save(); history.back(); toast(orig ? 'Karte aktualisiert' : 'Karte hinzugefügt');
     if (!orig) setTimeout(() => openViewer(c.id), 320);

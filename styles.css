@@ -368,3 +368,27 @@ nav.tabs button[aria-current="page"] .ic { transform: scale(1.08); }
 .ulock .kh { fill: #0b0b0e; }
 .lock > * { transition: opacity .2s, transform .25s var(--ease); }
 .lock.leaving > * { opacity: 0; transform: translateY(-8px); }
+
+/* E-Mail-Visual: Umschlag */
+.seg button { font-size: .92rem; padding: 0 4px; }
+.cm-fold, .cm-flap, .cm-open { position: absolute; inset: 0; pointer-events: none; }
+.cm-fold.l { clip-path: polygon(0 0, 52% 54%, 0 100%); background: rgba(0, 0, 0, .09); }
+.cm-fold.r { clip-path: polygon(100% 0, 48% 54%, 100% 100%); background: rgba(0, 0, 0, .09); }
+.cm-fold.b { clip-path: polygon(0 100%, 50% 46%, 100% 100%); background: rgba(0, 0, 0, .17); }
+.cm-flap { clip-path: polygon(0 0, 100% 0, 50% 58%); background: linear-gradient(180deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, .1)); }
+.cm-top { position: relative; z-index: 2; }
+.cm-seal { position: absolute; left: 50%; top: 57%; transform: translate(-50%, -50%); z-index: 2; width: 2.3em; height: 2.3em; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 800; font-size: 1.05em; color: #fff; background: rgba(0, 0, 0, .3); box-shadow: 0 .2em .5em rgba(0, 0, 0, .35), inset 0 0 0 .08em rgba(255, 255, 255, .35); }
+.cm-addr { position: relative; z-index: 2; margin-top: auto; min-width: 0; }
+.cm-addr small { display: block; font-size: .55em; text-transform: uppercase; letter-spacing: .12em; opacity: .75; font-weight: 700; }
+.cm-addr span { display: block; font-weight: 700; font-size: .95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mailback { position: absolute; }
+.cm-open { clip-path: polygon(0 0, 100% 0, 50% 40%); background: rgba(0, 0, 0, .2); }
+.cm-letter { position: absolute; left: 8%; right: 8%; top: 24%; bottom: 9%; padding: .7em .95em; border-radius: .55em; background: #f6f4ef; color: #111; box-shadow: 0 .3em .9em rgba(0, 0, 0, .35); overflow: hidden; }
+.cm-letter small { display: block; font-size: .6em; text-transform: uppercase; letter-spacing: .12em; font-weight: 700; color: #6b6b73; }
+.cm-letter small.gap { margin-top: .7em; }
+.cm-letter p { margin: .25em 0 0; }
+.cm-letter .pw { font-size: 1.2em; font-weight: 800; letter-spacing: .22em; }
+.cm-letter .ad { font-size: .8em; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill .pwsec { display: block; letter-spacing: .08em; overflow-wrap: anywhere; }
+.pill.wide .clip { flex: 1; min-width: 0; }
