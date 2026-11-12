@@ -282,6 +282,7 @@ function menuHtml(t) {
 function renderTab() {
   const screen = $('#screen'); if (!screen || !data) return;
   setMenu(false);
+  resetNoteMode();
   const fm = $('#fabmenu'); if (fm) fm.innerHTML = menuHtml(tab);
   $('#glowwrap')?.classList.toggle('on', tab === 'home');
   screen.innerHTML = { home: viewHome, notes: viewNotes, todos: viewTodos, cards: viewCards }[tab]();
@@ -292,7 +293,7 @@ function renderTab() {
   if (fabCfg) { fab.style.setProperty('--a', `var(--${fabCfg[0]})`); fab.setAttribute('aria-label', fabCfg[1]); }
   if (tab === 'home' || tab === 'cards') { fab.setAttribute('aria-haspopup', 'menu'); fab.setAttribute('aria-expanded', 'false'); }
   else { fab.removeAttribute('aria-haspopup'); fab.removeAttribute('aria-expanded'); }
-  if (tab === 'notes') bindNoteSearch();
+  if (tab === 'notes') { bindNoteSearch(); bindNoteEdit(); }
   if (tab === 'todos') bindTodoForm();
 }
 
@@ -381,8 +382,7 @@ function viewNotes() {
 }
 function noteGrid() {
   const q = noteQ.trim().toLowerCase();
-  const list = data.notes.filter(n => !q || (n.title + ' ' + n.body).toLowerCase().includes(q))
-    .sort((a, b) => (b.pinned - a.pinned) || (b.updated - a.updated));
+  const list = displayedNotes();
   if (!data.notes.length) return emptyState('note', 'Noch keine Notizen', 'Tippe auf + für deine erste Notiz.');
   if (!list.length) return emptyState('search', 'Nichts gefunden', `Keine Notiz enthält „${esc(noteQ)}“.`);
   return `<div class="notes">${list.map(n => `
@@ -394,9 +394,169 @@ function noteGrid() {
     </button>`).join('')}</div>`;
 }
 function bindNoteSearch() {
-  $('#q').addEventListener('input', e => { noteQ = e.target.value; $('#notegrid').innerHTML = noteGrid(); });
+  $('#q').addEventListener('input', e => { noteQ = e.target.value; paintNotes(); });
 }
 const emptyState = (icon, title, text) => `<div class="empty">${ic(icon)}<b>${title}</b><p>${text}</p></div>`;
+
+/* ---------- Notizen bearbeiten: gedrückt halten, wackeln, verschieben, anheften, löschen ---------- */
+const noteSort = (a, b) => (b.pinned - a.pinned) || ((a.pos ?? -a.updated) - (b.pos ?? -b.updated));
+function displayedNotes() {
+  const q = noteQ.trim().toLowerCase();
+  return data.notes.filter(n => !q || (n.title + ' ' + n.body).toLowerCase().includes(q)).sort(noteSort);
+}
+let noteMode = null; // { sel: id | null } solange der Bearbeiten-Modus aktiv ist
+const noteEls = () => [...document.querySelectorAll('#notegrid .note')];
+const noteById = id => data.notes.find(n => n.id === id);
+
+function paintNotes() { $('#notegrid').innerHTML = noteGrid(); decorateNotes(); }
+function decorateNotes() {
+  const wrap = $('#notegrid .notes');
+  if (wrap) {
+    wrap.classList.toggle('editing', !!noteMode);
+    noteEls().forEach(el => {
+      el.style.setProperty('--wd', (-Math.random() * .3).toFixed(2) + 's');
+      el.classList.toggle('sel', !!noteMode && el.dataset.note === noteMode.sel);
+    });
+  }
+  const bar = $('#nbar');
+  if (bar && noteMode) {
+    const n = noteMode.sel && noteById(noteMode.sel);
+    bar.querySelectorAll('[data-nact="pin"], [data-nact="del"]').forEach(b => { b.disabled = !n; });
+    bar.querySelector('[data-nact="pin"] span').textContent = n?.pinned ? 'Lösen' : 'Anheften';
+  }
+}
+function selectNote(id) { if (!noteMode) return; if (noteMode.sel !== id) buzz(6); noteMode.sel = id; decorateNotes(); }
+
+function enterNoteEdit(id) {
+  if (!noteMode) {
+    noteMode = { sel: null };
+    document.body.classList.add('noteedit');
+    document.body.insertAdjacentHTML('beforeend', `<div class="nbar" id="nbar" role="toolbar" aria-label="Notiz bearbeiten">
+      <button class="nb-btn" data-nact="pin">${ic('pin')}<span>Anheften</span></button>
+      <button class="nb-btn danger" data-nact="del">${ic('trash')}<span>Löschen</span></button>
+      <button class="nb-done" data-nact="done">Fertig</button></div>`);
+    const bar = $('#nbar'); void bar.offsetWidth; bar.classList.add('in');
+    bar.addEventListener('click', e => { const b = e.target.closest('[data-nact]'); if (b && !b.disabled) noteAction(b.dataset.nact); });
+    buzz(14);
+  }
+  selectNote(id); decorateNotes();
+}
+function exitNoteEdit() {
+  if (!noteMode) return;
+  noteMode = null; document.body.classList.remove('noteedit');
+  const bar = $('#nbar'); if (bar) { bar.removeAttribute('id'); bar.classList.remove('in'); setTimeout(() => bar.remove(), 450); }
+  decorateNotes();
+}
+function resetNoteMode() { // z. B. beim Tab-Wechsel
+  if (!noteMode) return;
+  noteMode = null; document.body.classList.remove('noteedit'); $('#nbar')?.remove();
+}
+
+// Verschiebt die Karten sanft an ihren neuen Platz (FLIP), nachdem sich Daten oder Reihenfolge geändert haben
+function flipNotes(mutate) {
+  const first = new Map(noteEls().map(el => [el.dataset.note, el.getBoundingClientRect()]));
+  mutate(); paintNotes();
+  const els = noteEls();
+  els.forEach(el => {
+    const f = first.get(el.dataset.note); if (!f) return;
+    const l = el.getBoundingClientRect(), dx = f.left - l.left, dy = f.top - l.top;
+    if (dx || dy) { el.style.transition = 'none'; el.style.translate = `${dx}px ${dy}px`; el.dataset.fl = '1'; }
+  });
+  void document.body.offsetWidth;
+  els.forEach(el => { if (el.dataset.fl) { el.style.transition = ''; el.classList.add('shift'); el.style.translate = '0px 0px'; } });
+  setTimeout(() => els.forEach(el => { el.classList.remove('shift'); el.style.translate = ''; delete el.dataset.fl; }), 450);
+}
+
+async function noteAction(act) {
+  if (act === 'done') return exitNoteEdit();
+  const n = noteMode?.sel && noteById(noteMode.sel); if (!n) return;
+  if (act === 'pin') {
+    buzz(10);
+    flipNotes(() => { n.pinned = !n.pinned; save(); });
+    toast(n.pinned ? 'Notiz angeheftet' : 'Notiz gelöst');
+  } else if (act === 'del') {
+    if (!(await dialog({ title: 'Notiz löschen?', body: 'Das kann nicht rückgängig gemacht werden.', ok: 'Löschen', danger: true }))) return;
+    const el = noteEls().find(x => x.dataset.note === n.id); el?.classList.add('vanish');
+    buzz(12);
+    setTimeout(() => flipNotes(() => { data.notes = data.notes.filter(x => x.id !== n.id); if (noteMode) noteMode.sel = null; save(); }), 240);
+    toast('Notiz gelöscht');
+  }
+}
+
+function bindNoteEdit() {
+  const grid = $('#notegrid'); if (!grid) return;
+  let g = null;
+  const cleanup = () => { removeEventListener('pointermove', onMove); removeEventListener('pointerup', onUp); removeEventListener('pointercancel', onUp); };
+  const page = el => { const r = el.getBoundingClientRect(); return { x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height }; };
+
+  function startDrag(e) {
+    const els = noteEls(), ids = els.map(x => x.dataset.note), from = els.indexOf(g.el);
+    const grp = !!noteById(ids[from]).pinned;
+    g.d = { els, ids, from, cur: from, slots: els.map(page), fx0: e.clientX + scrollX, fy0: e.clientY + scrollY,
+      allowed: ids.map((id, i) => i).filter(i => !!noteById(ids[i]).pinned === grp), order: ids };
+    g.el.classList.add('drag'); els.forEach(x => x.classList.add('shift'));
+    g.el.classList.remove('shift'); g.el.style.transition = 'none';
+    g.loop = setInterval(() => {
+      if (g.fy < 120) scrollBy(0, -10); else if (g.fy > innerHeight - 170) scrollBy(0, 10); else return;
+      placeDrag();
+    }, 16);
+    buzz(8);
+  }
+  function placeDrag() {
+    const d = g.d, dx = g.fx + scrollX - d.fx0, dy = g.fy + scrollY - d.fy0, home = d.slots[d.from];
+    g.el.style.translate = `${dx}px ${dy}px`;
+    const cx = home.x + home.w / 2 + dx, cy = home.y + home.h / 2 + dy;
+    let best = d.cur, bd = Infinity;
+    d.allowed.forEach(i => { const s = d.slots[i], dist = Math.hypot(cx - (s.x + s.w / 2), cy - (s.y + s.h / 2)); if (dist < bd) { bd = dist; best = i; } });
+    if (best === d.cur) return;
+    d.cur = best; buzz(4);
+    const order = d.ids.filter((_, i) => i !== d.from); order.splice(best, 0, d.ids[d.from]); d.order = order;
+    order.forEach((id, k) => {
+      const i = d.ids.indexOf(id); if (i === d.from) return;
+      d.els[i].style.translate = `${d.slots[k].x - d.slots[i].x}px ${d.slots[k].y - d.slots[i].y}px`;
+    });
+  }
+  function drop() {
+    const d = g.d, el = g.el, home = d.slots[d.from], slot = d.slots[d.cur], order = d.order;
+    clearInterval(g.loop);
+    el.classList.remove('drag'); el.classList.add('settle'); el.style.transition = '';
+    el.style.translate = `${slot.x - home.x}px ${slot.y - home.y}px`;
+    buzz(8);
+    setTimeout(() => { order.forEach((id, i) => { const n = noteById(id); if (n) n.pos = i; }); save(); paintNotes(); }, 320);
+  }
+
+  function onMove(e) {
+    if (!g || e.pointerId !== g.pid) return;
+    g.fx = e.clientX; g.fy = e.clientY;
+    const moved = Math.hypot(e.clientX - g.x0, e.clientY - g.y0);
+    if (!g.d) {
+      if (!g.armed) { if (moved > 9) { clearTimeout(g.timer); cleanup(); g = null; } return; } // vor dem Halten bewegt = ganz normales Scrollen
+      if (moved > 7 && !noteQ.trim()) startDrag(e); else return;
+    }
+    placeDrag();
+  }
+  function onUp(e) {
+    if (!g || e.pointerId !== g.pid) return;
+    clearTimeout(g.timer); cleanup();
+    if (g.d) drop();
+    g = null;
+  }
+  grid.addEventListener('pointerdown', e => {
+    const el = e.target.closest('.note');
+    if (!el || g || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    g = { pid: e.pointerId, el, x0: e.clientX, y0: e.clientY, fx: e.clientX, fy: e.clientY, armed: false, d: null, timer: 0 };
+    addEventListener('pointermove', onMove); addEventListener('pointerup', onUp); addEventListener('pointercancel', onUp);
+    if (noteMode) { g.armed = true; selectNote(el.dataset.note); }
+    else { const mine = g; g.timer = setTimeout(() => { if (g === mine) { mine.armed = true; enterNoteEdit(el.dataset.note); } }, 420); }
+  });
+  // Solange gedrückt-gehalten wird, soll die Seite nicht scrollen
+  grid.addEventListener('touchmove', e => { if (g && (g.armed || g.d)) e.preventDefault(); }, { passive: false });
+  grid.addEventListener('contextmenu', e => { const el = e.target.closest('.note'); if (el) { e.preventDefault(); enterNoteEdit(el.dataset.note); } });
+  // Im Bearbeiten-Modus öffnet Antippen keine Notiz, sondern wählt sie aus
+  grid.addEventListener('click', e => { if (noteMode && e.target.closest('.note')) { e.preventDefault(); e.stopPropagation(); } }, true);
+  $('#screen').addEventListener('click', e => { if (noteMode && !e.target.closest('.note, .nbar')) exitNoteEdit(); });
+}
+addEventListener('keydown', e => { if (e.key === 'Escape' && noteMode) exitNoteEdit(); });
 
 function openNote(id) {
   let n = data.notes.find(x => x.id === id);
