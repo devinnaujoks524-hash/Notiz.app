@@ -26,13 +26,14 @@ const P = {
   copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/>',
   mail: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 7.5l8 6 8-6"/>',
   eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
   bag: '<path d="M6 8h12l1 12H5z"/><path d="M9 8V6.5a3 3 0 016 0V8"/>',
   shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/>',
 };
 const ic = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
 
 /* ---------- Zustand ---------- */
-const empty = () => ({ v: 1, notes: [], todos: [], cards: [], settings: { autolock: 60 } });
+const empty = () => ({ v: 1, notes: [], todos: [], cards: [], invoices: [], settings: { autolock: 60 } });
 let data = null, tab = 'home', saveT = null, hiddenAt = 0, bioOk = false, fails = 0, waitUntil = 0, enter = true, menuOpen = false, updateReady = false;
 const freshIds = new Set();
 const sheets = [];
@@ -105,6 +106,7 @@ function popSheet() {
   setTimeout(() => s.el.remove(), s.el.classList.contains('morph') ? 600 : 260);
   if (Vault.unlocked) renderTab();
   s.prevFocus?.focus?.({ preventScroll: true });
+  sheets[sheets.length - 1]?.el.dispatchEvent(new Event('revive')); // darunterliegende Liste neu zeichnen
 }
 addEventListener('popstate', () => { if (sheets.length) popSheet(); });
 function closeAllSheets() { while (sheets.length) { const s = sheets.pop(); s.onClose?.(); s.el.remove(); } }
@@ -275,7 +277,7 @@ function menuHtml(t) {
   const item = (add, label, icon, i, color) => `<button class="fm-item" role="menuitem" data-add="${add}" style="--i:${i};--a:var(--${color})"><span>${label}</span><span class="fm-ic">${ic(icon)}</span></button>`;
   return t === 'cards'
     ? item('card:mail', 'E-Mail', 'mail', 2, 'blue') + item('card:member', 'Kundenkarte', 'bag', 1, 'green') + item('card:bank', 'Bankkarte', 'card', 0, 'violet')
-    : item('card', 'Visualisierung', 'card', 2, 'violet') + item('todo', 'To-do', 'check', 1, 'orange') + item('note', 'Notiz', 'note', 0, 'yellow');
+    : item('invoice', 'Rechnung', 'receipt', 3, 'green') + item('card', 'Visualisierung', 'card', 2, 'violet') + item('todo', 'To-do', 'check', 1, 'orange') + item('note', 'Notiz', 'note', 0, 'yellow');
 }
 function renderTab() {
   const screen = $('#screen'); if (!screen || !data) return;
@@ -364,6 +366,7 @@ function viewHome() {
     <time class="htime" id="hTime">${p.time}</time>
     <p class="hweek" id="hWeek">${p.week}</p>
     ${todos}
+    ${invHome()}
   </div>`;
 }
 
@@ -737,6 +740,211 @@ function openQuickTodo() {
   setTimeout(() => input.focus(), 380);
 }
 
+/* ---------- Rechnungen ---------- */
+const TAXES = [
+  { g: 'Deutschland', items: [['de19', 'MwSt. Deutschland', 19], ['de7', 'MwSt. Deutschland (ermäßigt)', 7]] },
+  { g: 'Europa', items: [['at20', 'USt. Österreich', 20], ['at10', 'USt. Österreich (ermäßigt)', 10], ['ch81', 'MWST Schweiz', 8.1], ['ch26', 'MWST Schweiz (reduziert)', 2.6],
+    ['fr20', 'TVA Frankreich', 20], ['it22', 'IVA Italien', 22], ['es21', 'IVA Spanien', 21], ['nl21', 'BTW Niederlande', 21], ['uk20', 'VAT Großbritannien', 20]] },
+  { g: 'Übersee', items: [['us', 'Sales Tax USA (je nach Bundesstaat)', 7], ['ca5', 'GST Kanada', 5], ['au10', 'GST Australien', 10]] },
+  { g: 'Sonstiges', items: [['zero', 'Keine Steuer', 0]] },
+];
+const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY'];
+const pad2 = n => String(n).padStart(2, '0');
+const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+const fmtIso = iso => iso ? new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso + 'T00:00:00')) : '';
+const money = (v, cur) => { try { return new Intl.NumberFormat('de-DE', { style: 'currency', currency: cur || 'EUR' }).format(v || 0); } catch { return (v || 0).toFixed(2) + ' ' + cur; } };
+const pct = r => String(r ?? '').replace('.', ',');
+const num = s => { const n = parseFloat(String(s ?? '').replace(/\s/g, '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
+function calcInv(amount, mode, rate) {
+  const a = num(amount), k = 1 + num(rate) / 100;
+  if (mode === 'net') { const tax = r2(a * (k - 1)); return { net: r2(a), tax, gross: r2(a + tax) }; }
+  const net = r2(a / k); return { net, tax: r2(a - net), gross: r2(a) };
+}
+const allTaxes = () => [...TAXES.flatMap(g => g.items.map(([key, name, rate]) => ({ key, name, rate }))),
+  ...(data.settings.taxes || []).map((t, i) => ({ key: 'c:' + i, name: t.name, rate: t.rate }))];
+const invOverdue = i => i.status !== 'paid' && i.due && i.due < todayIso();
+const invChip = i => i.status === 'paid' ? '<span class="chip paid">Bezahlt</span>' : invOverdue(i) ? '<span class="chip late">Überfällig</span>' : '<span class="chip open">Offen</span>';
+function invRow(i) {
+  const sub = i.status === 'paid' ? 'Bezahlt' : i.due ? 'Fällig ' + fmtIso(i.due) : 'Offen';
+  return `<button class="invrow" data-inv="${i.id}"><span class="inv-ic">${ic('receipt')}</span>
+    <span class="inv-tx"><b>${esc(i.vendor)}</b><small class="${invOverdue(i) ? 'late' : ''}">${esc(sub)}${i.number ? ' · ' + esc(i.number) : ''}</small></span>
+    <span class="inv-amt">${money(i.gross, i.currency)}</span></button>`;
+}
+const invSort = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || b.created - a.created;
+function invTotals(list) {
+  const by = {}; list.forEach(i => { by[i.currency] = (by[i.currency] || 0) + i.gross; });
+  return Object.entries(by).map(([c, v]) => money(v, c)).join(' · ');
+}
+function invHome() {
+  if (!data.invoices.length) return '';
+  const open = data.invoices.filter(i => i.status !== 'paid').sort(invSort), shown = open.slice(0, 3);
+  return `<section class="hinv" aria-label="Rechnungen">
+    <div class="hsec"><span>Rechnungen</span><b>${open.length}</b></div>
+    ${open.length ? `<div class="invlist">${shown.map(invRow).join('')}</div>` : '<p class="sub left">Keine offenen Rechnungen.</p>'}
+    ${open.length ? `<p class="invsum">Offen gesamt: ${invTotals(open)}</p>` : ''}
+    <button class="more" data-act="invlist">Alle Rechnungen</button></section>`;
+}
+
+function loadImage(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); res(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('img')); };
+    img.src = url;
+  });
+}
+async function compressImage(file, max = 1600, q = .74) {
+  const img = await loadImage(file), s = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', q);
+}
+
+function openInvoiceForm(id) {
+  const orig = data.invoices.find(x => x.id === id);
+  const inv = orig ? { ...orig } : { id: uid(), vendor: '', number: '', date: todayIso(), due: '', amount: '', mode: 'gross', currency: 'EUR',
+    taxKey: 'de19', taxName: 'MwSt. Deutschland', rate: 19, status: 'open', note: '', image: '', created: Date.now() };
+  const customs = data.settings.taxes || [];
+  const opts = TAXES.map(g => `<optgroup label="${g.g}">${g.items.map(([k, n, r]) => `<option value="${k}">${esc(n)} · ${pct(r)} %</option>`).join('')}</optgroup>`).join('')
+    + (customs.length ? `<optgroup label="Meine Steuern">${customs.map((t, i) => `<option value="c:${i}">${esc(t.name)} · ${pct(t.rate)} %</option>`).join('')}</optgroup>` : '')
+    + '<option value="custom">Eigene Steuer anlegen …</option>';
+  const el = openSheet(`
+    <div class="sheet-top">
+      <button class="iconbtn" data-close aria-label="Abbrechen">${ic('x')}</button>
+      <h2 class="grow center">${orig ? 'Rechnung bearbeiten' : 'Neue Rechnung'}</h2>
+      <button class="btn primary sm" id="save">Sichern</button>
+    </div>
+    <form class="form" id="if" autocomplete="off" onsubmit="return false">
+      <label class="field"><span>Aussteller / Firma</span><input name="vendor" value="${esc(inv.vendor)}" placeholder="z. B. Telekom" autocomplete="off"></label>
+      <div class="two">
+        <label class="field"><span>Rechnungsnummer</span><input name="number" value="${esc(inv.number)}" placeholder="optional" autocomplete="off"></label>
+        <label class="field"><span>Rechnungsdatum</span><input name="date" type="date" value="${esc(inv.date)}"></label>
+      </div>
+      <label class="field"><span>Fällig am</span><input name="due" type="date" value="${esc(inv.due)}"></label>
+      <div class="seg" id="modeSeg" role="radiogroup" aria-label="Betrag ist">
+        <button type="button" role="radio" data-mode="gross">Betrag brutto</button><button type="button" role="radio" data-mode="net">Betrag netto</button>
+      </div>
+      <div class="two">
+        <label class="field"><span>Betrag</span><input name="amount" value="${esc(inv.amount)}" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
+        <label class="field"><span>Währung</span><select name="currency">${CURRENCIES.map(c => `<option ${c === inv.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+      </div>
+      <label class="field"><span>Steuer</span><select id="taxSel">${opts}</select></label>
+      <div class="two">
+        <label class="field"><span>Bezeichnung</span><input name="taxName" value="${esc(inv.taxName)}" placeholder="z. B. Sales Tax Texas" autocomplete="off"></label>
+        <label class="field"><span>Satz in %</span><input name="rate" value="${esc(pct(inv.rate))}" inputmode="decimal" placeholder="19" autocomplete="off"></label>
+      </div>
+      <div class="sumbox" id="sum" aria-live="polite"></div>
+      <div class="seg" id="stSeg" role="radiogroup" aria-label="Status">
+        <button type="button" role="radio" data-st="open">Offen</button><button type="button" role="radio" data-st="paid">Bezahlt</button>
+      </div>
+      <label class="field"><span>Notiz</span><textarea name="note" rows="2" placeholder="optional">${esc(inv.note)}</textarea></label>
+      <div class="field"><span>Bild der Rechnung</span><div id="imgbox"></div></div>
+      <input type="file" accept="image/*" id="imgIn" hidden>
+    </form>
+    <p class="err" id="ferr" role="alert"></p>`, { label: 'Rechnung', cls: 'form-sheet' });
+
+  const $f = n => el.querySelector(`[name="${n}"]`), taxSel = el.querySelector('#taxSel');
+  taxSel.value = allTaxes().some(t => t.key === inv.taxKey) ? inv.taxKey : 'custom';
+  const sum = () => {
+    const c = calcInv(inv.amount, inv.mode, inv.rate);
+    el.querySelector('#sum').innerHTML = `<div class="sumrow"><span>Netto</span><span>${money(c.net, inv.currency)}</span></div>
+      <div class="sumrow"><span>${esc(inv.taxName || 'Steuer')} · ${pct(num(inv.rate))} %</span><span>${money(c.tax, inv.currency)}</span></div>
+      <div class="sumrow tot"><span>Brutto</span><span>${money(c.gross, inv.currency)}</span></div>`;
+  };
+  const marks = () => {
+    el.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-checked', b.dataset.mode === inv.mode));
+    el.querySelectorAll('[data-st]').forEach(b => b.setAttribute('aria-checked', b.dataset.st === inv.status));
+  };
+  el.querySelector('#if').addEventListener('input', e => { const t = e.target; if (t.name) { inv[t.name] = t.value; sum(); } });
+  taxSel.addEventListener('change', () => {
+    inv.taxKey = taxSel.value;
+    if (taxSel.value === 'custom') { inv.taxName = ''; $f('taxName').value = ''; $f('taxName').focus(); }
+    else { const t = allTaxes().find(x => x.key === taxSel.value); inv.taxName = t.name; inv.rate = t.rate; $f('taxName').value = t.name; $f('rate').value = pct(t.rate); }
+    sum();
+  });
+  el.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { inv.mode = b.dataset.mode; marks(); sum(); }));
+  el.querySelectorAll('[data-st]').forEach(b => b.addEventListener('click', () => { inv.status = b.dataset.st; marks(); }));
+  const renderImg = () => {
+    el.querySelector('#imgbox').innerHTML = inv.image
+      ? `<div class="imgprev"><img src="${inv.image}" alt="Bild der Rechnung"><button type="button" class="iconbtn sm rm" id="imgRm" aria-label="Bild entfernen">${ic('x')}</button></div>`
+      : `<button type="button" class="btn imgadd" id="imgBtn">${ic('plus')}<span>Foto oder Bild hinzufügen</span></button>`;
+    el.querySelector('#imgRm')?.addEventListener('click', () => { inv.image = ''; renderImg(); });
+    el.querySelector('#imgBtn')?.addEventListener('click', () => el.querySelector('#imgIn').click());
+  };
+  el.querySelector('#imgIn').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    try { inv.image = await compressImage(f); renderImg(); } catch { toast('Das Bild konnte nicht geladen werden'); }
+  });
+  marks(); sum(); renderImg();
+
+  $('#save', el).addEventListener('click', () => {
+    const err = $('#ferr', el);
+    if (!String(inv.vendor).trim()) return (err.textContent = 'Gib Aussteller oder Firma ein.');
+    if (!(num(inv.amount) > 0)) return (err.textContent = 'Gib einen Betrag ein.');
+    const c = calcInv(inv.amount, inv.mode, inv.rate), name = String(inv.taxName).trim(), rate = num(inv.rate);
+    Object.assign(inv, { vendor: String(inv.vendor).trim(), taxName: name, rate, net: c.net, tax: c.tax, gross: c.gross });
+    if (name && !allTaxes().some(t => t.name === name && t.rate === rate)) (data.settings.taxes ||= []).push({ name, rate }); // eigene Steuer merken
+    if (orig) Object.assign(orig, inv); else data.invoices.push(inv);
+    save(); history.back(); toast(orig ? 'Rechnung aktualisiert' : 'Rechnung hinzugefügt');
+  });
+}
+
+function openInvoice(id) {
+  const i = data.invoices.find(x => x.id === id); if (!i) return;
+  const pill = (k, v) => v ? `<div class="pill"><span class="clip"><small>${k}</small>${esc(v)}</span></div>` : '';
+  const el = openSheet(`
+    <div class="sheet-top">
+      <button class="iconbtn" data-close aria-label="Zurück">${ic('back')}</button><span class="grow"></span>
+      <button class="iconbtn" id="edit" aria-label="Bearbeiten">${ic('edit')}</button>
+      <button class="iconbtn" id="del" aria-label="Rechnung löschen">${ic('trash')}</button>
+    </div>
+    <div class="invhero"><span id="chipwrap">${invChip(i)}</span><h1>${esc(i.vendor)}</h1>
+      <div class="amt">${money(i.gross, i.currency)}</div>${i.number ? `<p class="sub left">Nr. ${esc(i.number)}</p>` : ''}</div>
+    <div class="pills info">
+      ${pill('Netto', money(i.net, i.currency))}${pill(`${i.taxName || 'Steuer'} · ${pct(i.rate)} %`, money(i.tax, i.currency))}
+      ${pill('Rechnungsdatum', fmtIso(i.date))}${pill('Fällig am', fmtIso(i.due))}
+      ${i.note ? `<div class="pill wide"><span class="clip multi"><small>Notiz</small>${esc(i.note)}</span></div>` : ''}
+    </div>
+    ${i.image ? `<img class="invimg" id="invimg" src="${i.image}" alt="Bild der Rechnung">` : ''}
+    <button class="btn wide invpay" id="paid"></button>`, { label: i.vendor || 'Rechnung' });
+  const paidBtn = $('#paid', el);
+  const sync = () => { $('#chipwrap', el).innerHTML = invChip(i); paidBtn.textContent = i.status === 'paid' ? 'Wieder auf offen setzen' : 'Als bezahlt markieren'; };
+  sync();
+  paidBtn.addEventListener('click', () => { i.status = i.status === 'paid' ? 'open' : 'paid'; save(); sync(); buzz(8); });
+  $('#edit', el).addEventListener('click', () => { history.back(); setTimeout(() => openInvoiceForm(i.id), 300); });
+  $('#del', el).addEventListener('click', async () => {
+    if (!(await dialog({ title: 'Rechnung löschen?', body: 'Das kann nicht rückgängig gemacht werden.', ok: 'Löschen', danger: true }))) return;
+    data.invoices = data.invoices.filter(x => x.id !== i.id); save(); history.back(); toast('Rechnung gelöscht');
+  });
+  $('#invimg', el)?.addEventListener('click', () => openSheet(`<div class="sheet-top"><button class="iconbtn" data-close aria-label="Schließen">${ic('x')}</button></div><img src="${i.image}" alt="Bild der Rechnung">`, { label: 'Bild der Rechnung', cls: 'imgview' }));
+}
+
+function openInvoiceList(filter = 'open') {
+  let f = filter;
+  const el = openSheet(`
+    <div class="sheet-top"><button class="iconbtn" data-close aria-label="Zurück">${ic('back')}</button><h2 class="grow center">Rechnungen</h2>
+      <button class="iconbtn" id="addinv" aria-label="Neue Rechnung">${ic('plus')}</button></div>
+    <div class="seg" id="fseg" role="radiogroup" aria-label="Filter">
+      <button type="button" role="radio" data-f="open">Offen</button><button type="button" role="radio" data-f="paid">Bezahlt</button><button type="button" role="radio" data-f="all">Alle</button>
+    </div>
+    <div class="invlist" id="ilist"></div><p class="invsum" id="itotal"></p>`, { label: 'Rechnungen' });
+  const render = () => {
+    el.querySelectorAll('[data-f]').forEach(b => b.setAttribute('aria-checked', b.dataset.f === f));
+    const list = data.invoices.filter(i => f === 'all' || (f === 'paid') === (i.status === 'paid')).sort(f === 'paid' ? (a, b) => b.date.localeCompare(a.date) : invSort);
+    $('#ilist', el).innerHTML = list.length ? list.map(invRow).join('') : `<p class="sub">${f === 'paid' ? 'Noch nichts bezahlt.' : f === 'open' ? 'Keine offenen Rechnungen.' : 'Noch keine Rechnungen.'}</p>`;
+    $('#itotal', el).textContent = list.length ? (f === 'paid' ? 'Bezahlt gesamt: ' : f === 'open' ? 'Offen gesamt: ' : 'Gesamt: ') + invTotals(list) : '';
+  };
+  el.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.f) { f = b.dataset.f; render(); }
+    else if (b.dataset.inv) openInvoice(b.dataset.inv);
+    else if (b.id === 'addinv') openInvoiceForm();
+  });
+  el.addEventListener('revive', render);
+  render();
+}
+
 /* ---------- Klicks ---------- */
 app.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || !data) return;
@@ -744,6 +952,7 @@ app.addEventListener('click', e => {
   if (b.dataset.go) return switchTab(b.dataset.go);
   if (b.dataset.note) return openNote(b.dataset.note);
   if (b.dataset.card) return openViewer(b.dataset.card);
+  if (b.dataset.inv) return openInvoice(b.dataset.inv);
   if (b.dataset.toggle) return toggleTodo(b.dataset.toggle, b);
   if (b.dataset.deltodo) { data.todos = data.todos.filter(t => t.id !== b.dataset.deltodo); save(); return renderTab(); }
   if (b.dataset.new === 'note') return openNote();
@@ -752,13 +961,14 @@ app.addEventListener('click', e => {
   if (b.dataset.add) {
     const k = b.dataset.add;
     setMenu(false); $('#fab').focus({ preventScroll: true });
-    setTimeout(() => (k === 'note' ? openNote() : k === 'todo' ? openQuickTodo() : openCardForm(undefined, k.startsWith('card:') ? k.slice(5) : undefined)), 150);
+    setTimeout(() => (k === 'note' ? openNote() : k === 'todo' ? openQuickTodo() : k === 'invoice' ? openInvoiceForm() : openCardForm(undefined, k.startsWith('card:') ? k.slice(5) : undefined)), 150);
     return;
   }
   if (b.id === 'fab') { if (tab === 'home' || tab === 'cards') return setMenu(!menuOpen, e.detail === 0); if (tab === 'notes') openNote(); else if (tab === 'cards') openCardForm(); else if (tab === 'todos') $('#tt').focus(); return; }
   const act = b.dataset.act;
   if (act === 'lock') return lockNow();
   if (act === 'settings') return openSettings(b);
+  if (act === 'invlist') return openInvoiceList();
   if (act === 'bio') return enrollBio().then(renderTab);
   if (act === 'cleardone') { data.todos = data.todos.filter(t => !t.done); save(); renderTab(); }
 });
