@@ -508,3 +508,24 @@ body.noteedit .fab { opacity: 0; pointer-events: none; transform: scale(.6); }
 .hctile .hello.hg-caps { letter-spacing: .1em; font-size: .78rem !important; }
 .hctile .htime.hc-stack { font-size: 1.5rem !important; }
 .sheet.customize .swatches.big { margin: 2px 0 12px; }
+
+/* Animations-Feinschliff */
+.dlg[open] { animation: dlgIn .32s var(--ease); }
+.dlg[open]::backdrop { animation: fadeIn .28s ease-out; }
+.dlg.out { animation: dlgOut .2s ease-in forwards; }
+.dlg.out::backdrop { animation: fadeOut .2s ease-in forwards; }
+@keyframes dlgIn { from { opacity: 0; transform: translateY(16px) scale(.94); } }
+@keyframes dlgOut { to { opacity: 0; transform: translateY(8px) scale(.97); } }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes fadeOut { to { opacity: 0; } }
+.group.collapsible { max-height: 420px; transition: max-height .45s var(--ease), opacity .3s, margin .45s var(--ease), transform .45s var(--ease), box-shadow .3s; }
+.group.collapsed { max-height: 0; opacity: 0; margin-bottom: 0; transform: translateY(-8px); pointer-events: none; box-shadow: none; }
+.todos .todo { transition: height .3s var(--ease), margin .3s var(--ease), padding .3s var(--ease), opacity .25s; }
+#screen.stag .note, #screen.stag .cardmini, #screen.stag .todo, #screen.stag .invrow, #screen.stag .search, #screen.stag .empty { animation: rise .55s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 45ms); }
+.lock > * { animation: rise .7s var(--ease) backwards; }
+.lock > :nth-child(2) { animation-delay: .06s; } .lock > :nth-child(3) { animation-delay: .12s; } .lock > :nth-child(4) { animation-delay: .18s; } .lock > :nth-child(5) { animation-delay: .24s; } .lock > :nth-child(6) { animation-delay: .3s; }
+.err:not(:empty) { animation: fadeIn .3s ease-out; }
+.row { transition: background-color .2s; } .row:active { background: rgba(255, 255, 255, .04); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: .01ms !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
+}

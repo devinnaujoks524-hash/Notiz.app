@@ -6,6 +6,10 @@ const app = $('#app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 const buzz = ms => { try { navigator.vibrate?.(ms); } catch {} };
+const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fadeIn = el => { if (el && !reduced()) el.animate?.([{ opacity: .35, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)' }); };
+const popEl = el => { if (el && !reduced()) el.animate?.([{ transform: 'scale(.94)', opacity: .5 }, { transform: 'none', opacity: 1 }], { duration: 300, easing: 'cubic-bezier(.2,.9,.25,1.1)' }); };
+const shake = el => { if (el && !reduced()) el.animate?.([{ transform: 'translateX(0)' }, { transform: 'translateX(-9px)' }, { transform: 'translateX(8px)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(4px)' }, { transform: 'none' }], { duration: 380, easing: 'ease-out' }); };
 
 /* ---------- Icons ---------- */
 const P = {
@@ -70,10 +74,17 @@ function dialog({ title, body = '', fields = [], ok = 'OK', cancel = 'Abbrechen'
         <button class="btn ${danger ? 'danger' : 'primary'}" value="ok">${ok}</button>
       </div></form>`;
     document.body.append(d);
-    d.addEventListener('close', () => {
-      const v = d.returnValue === 'ok' ? Object.fromEntries(new FormData(d.querySelector('form'))) : null;
-      d.remove(); res(v);
+    let done = false;
+    const finish = v => {
+      if (done) return; done = true;
+      d.classList.add('out');
+      setTimeout(() => { d.close(); d.remove(); res(v); }, reduced() ? 0 : 200);
+    };
+    d.querySelector('form').addEventListener('submit', e => {
+      e.preventDefault();
+      finish(e.submitter?.value === 'ok' ? Object.fromEntries(new FormData(e.currentTarget)) : null);
     });
+    d.addEventListener('cancel', e => { e.preventDefault(); finish(null); });
     d.showModal();
   });
 }
@@ -201,7 +212,7 @@ function renderLock(msg = '') {
       fails = 0; playUnlock(renderMain);
     } catch {
       fails++; if (fails >= 3) waitUntil = Date.now() + 2 ** (fails - 2) * 1000;
-      unbusy(btn); err.textContent = 'Falscher Code.'; $('#c').select(); buzz([30, 40, 30]);
+      unbusy(btn); err.textContent = 'Falscher Code.'; $('#c').select(); buzz([30, 40, 30]); shake($('#f'));
     }
   });
   $('#bio')?.addEventListener('click', async () => {
@@ -306,6 +317,12 @@ function renderTab() {
   if (tab === 'todos') bindTodoForm();
 }
 
+function staggerScreen() {
+  const s = $('#screen'); if (!s || reduced()) return;
+  s.querySelectorAll('.note, .cardmini, .todo, .invrow, .search, .empty').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
+  s.classList.add('stag'); setTimeout(() => s.classList.remove('stag'), 1100);
+}
+
 // Weicher Tab-Wechsel: alter Inhalt blendet kurz aus, neuer gleitet ein, die Leiste reagiert sofort.
 let swapId = 0;
 function switchTab(next) {
@@ -318,7 +335,7 @@ function switchTab(next) {
   const show = () => {
     if (id !== swapId) return;
     screen.getAnimations?.().forEach(a => a.cancel()); // Ausblend-Animation (fill: forwards) lösen, sonst bleibt der Bildschirm bei Opazität 0 hängen
-    enter = true; renderTab(); scrollTo(0, 0);
+    enter = true; renderTab(); scrollTo(0, 0); if (tab !== 'home') staggerScreen();
     if (tab !== 'home' && screen.animate) screen.animate([{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: 340, easing: 'cubic-bezier(.2,.8,.2,1)' });
   };
   if (!screen?.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return show();
@@ -431,7 +448,7 @@ function openCustomize(origin) {
 
   const paint = () => {
     const cfg = homeCfg();
-    $('#hcprev', el).innerHTML = `<div class="home al-${cfg.align} cs-${cfg.clockSize}">${homeBlock(cfg, homeParts(), false)}</div>`;
+    $('#hcprev', el).innerHTML = `<div class="home al-${cfg.align} cs-${cfg.clockSize}">${homeBlock(cfg, homeParts(), false)}</div>`; fadeIn($('#hcprev', el).firstElementChild);
     const mark = (attr, val) => el.querySelectorAll(`[data-${attr}]`).forEach(b => b.setAttribute('aria-checked', b.dataset[attr] === val));
     mark('clock', cfg.clock); mark('greet', cfg.greet); mark('clockcolor', cfg.clockColor); mark('greetcolor', cfg.greetColor); mark('size', cfg.clockSize); mark('align', cfg.align);
     el.querySelectorAll('[data-show]').forEach(b => b.setAttribute('aria-checked', cfg.show[b.dataset.show]));
@@ -478,7 +495,7 @@ function noteGrid() {
     </button>`).join('')}</div>`;
 }
 function bindNoteSearch() {
-  $('#q').addEventListener('input', e => { noteQ = e.target.value; paintNotes(); });
+  $('#q').addEventListener('input', e => { noteQ = e.target.value; paintNotes(true); });
 }
 const emptyState = (icon, title, text) => `<div class="empty">${ic(icon)}<b>${title}</b><p>${text}</p></div>`;
 
@@ -492,7 +509,7 @@ let noteMode = null; // { sel: id | null } solange der Bearbeiten-Modus aktiv is
 const noteEls = () => [...document.querySelectorAll('#notegrid .note')];
 const noteById = id => data.notes.find(n => n.id === id);
 
-function paintNotes() { $('#notegrid').innerHTML = noteGrid(); decorateNotes(); }
+function paintNotes(fade) { const g = $('#notegrid'); g.innerHTML = noteGrid(); decorateNotes(); if (fade) fadeIn(g); }
 function decorateNotes() {
   const wrap = $('#notegrid .notes');
   if (wrap) {
@@ -849,8 +866,8 @@ function openCardForm(id, type) {
     if (t.name === 'exp') { let v = t.value.replace(/\D/g, '').slice(0, 4); if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2); t.value = v; }
     c[t.name] = t.value; renderPrev();
   });
-  el.querySelectorAll('[data-type]').forEach(b => b.addEventListener('click', () => { c.type = b.dataset.type; renderForm(); renderPrev(); }));
-  el.querySelectorAll('[data-theme]').forEach(b => b.addEventListener('click', () => { c.theme = b.dataset.theme; renderPrev(); }));
+  el.querySelectorAll('[data-type]').forEach(b => b.addEventListener('click', () => { c.type = b.dataset.type; renderForm(); renderPrev(); fadeIn($('#cf', el)); popEl($('#pv', el)); }));
+  el.querySelectorAll('[data-theme]').forEach(b => b.addEventListener('click', () => { c.theme = b.dataset.theme; renderPrev(); popEl($('#pv', el)); }));
   $('#save', el).addEventListener('click', () => {
     const err = $('#ferr', el);
     if (!c.name.trim()) return (err.textContent = 'Gib der Karte einen Namen.');
@@ -869,7 +886,7 @@ function openSettings(origin) {
       <div class="row"><div><b>Code-Sperre</b><small id="codeTxt">${Vault.hasCode ? 'App ist mit Code geschützt' : 'Aus – die App öffnet sich von selbst'}</small></div>
         <button class="switch" id="codeSw" role="switch" aria-checked="${Vault.hasCode}" aria-label="Code-Sperre"></button></div>
     </div>
-    <div class="group" id="codeGroup" ${Vault.hasCode ? '' : 'hidden'}>
+    <div class="group collapsible${Vault.hasCode ? '' : ' collapsed'}" id="codeGroup"${Vault.hasCode ? '' : ' inert'}>
       <div class="row"><div><b>Fingerabdruck</b><small id="bioTxt">${!bioOk ? 'Auf diesem Gerät nicht verfügbar' : Vault.hasBio ? 'Entsperren per Fingerabdruck ist an' : 'Schneller entsperren'}</small></div>
         <button class="switch" id="bioSw" role="switch" aria-checked="${Vault.hasBio}" aria-label="Fingerabdruck" ${bioOk ? '' : 'disabled'}></button></div>
       <label class="row"><div><b>Automatisch sperren</b><small>Wenn die App im Hintergrund ist</small></div>
@@ -898,7 +915,7 @@ function openSettings(origin) {
     }
     sw.setAttribute('aria-checked', Vault.hasCode);
     $('#codeTxt', el).textContent = Vault.hasCode ? 'App ist mit Code geschützt' : 'Aus – die App öffnet sich von selbst';
-    $('#codeGroup', el).hidden = !Vault.hasCode;
+    { const g = $('#codeGroup', el); g.classList.toggle('collapsed', !Vault.hasCode); g.toggleAttribute('inert', !Vault.hasCode); }
     renderTab();
   });
   $('#bioSw', el).addEventListener('click', async e => {
@@ -1121,7 +1138,7 @@ function openInvoiceForm(id) {
       ? `<div class="imgprev"><img src="${inv.image}" alt="Bild der Rechnung"><button type="button" class="iconbtn sm rm" id="imgRm" aria-label="Bild entfernen">${ic('x')}</button></div>`
       : `<button type="button" class="btn imgadd" id="imgBtn">${ic('plus')}<span>Foto oder Bild hinzufügen</span></button>`;
     el.querySelector('#imgRm')?.addEventListener('click', () => { inv.image = ''; renderImg(); });
-    el.querySelector('#imgBtn')?.addEventListener('click', () => el.querySelector('#imgIn').click());
+    el.querySelector('#imgBtn')?.addEventListener('click', () => el.querySelector('#imgIn').click()); fadeIn(el.querySelector('#imgbox'));
   };
   el.querySelector('#imgIn').addEventListener('change', async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
@@ -1160,7 +1177,7 @@ function openInvoice(id) {
     ${i.image ? `<img class="invimg" id="invimg" src="${i.image}" alt="Bild der Rechnung">` : ''}
     <button class="btn wide invpay" id="paid"></button>`, { label: i.vendor || 'Rechnung' });
   const paidBtn = $('#paid', el);
-  const sync = () => { $('#chipwrap', el).innerHTML = invChip(i); paidBtn.textContent = i.status === 'paid' ? 'Wieder auf offen setzen' : 'Als bezahlt markieren'; };
+  const sync = () => { $('#chipwrap', el).innerHTML = invChip(i); paidBtn.textContent = i.status === 'paid' ? 'Wieder auf offen setzen' : 'Als bezahlt markieren'; popEl($('#chipwrap', el)); };
   sync();
   paidBtn.addEventListener('click', () => { i.status = i.status === 'paid' ? 'open' : 'paid'; save(); sync(); buzz(8); });
   $('#edit', el).addEventListener('click', () => { history.back(); setTimeout(() => openInvoiceForm(i.id), 300); });
@@ -1188,7 +1205,7 @@ function openInvoiceList(filter = 'open') {
   };
   el.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.f) { f = b.dataset.f; render(); }
+    if (b.dataset.f) { f = b.dataset.f; render(); fadeIn($('#ilist', el)); }
     else if (b.dataset.inv) openInvoice(b.dataset.inv);
     else if (b.id === 'addinv') openInvoiceForm();
   });
@@ -1205,7 +1222,13 @@ app.addEventListener('click', e => {
   if (b.dataset.card) return openViewer(b.dataset.card);
   if (b.dataset.inv) return openInvoice(b.dataset.inv);
   if (b.dataset.toggle) return toggleTodo(b.dataset.toggle, b);
-  if (b.dataset.deltodo) { data.todos = data.todos.filter(t => t.id !== b.dataset.deltodo); save(); return renderTab(); }
+  if (b.dataset.deltodo) {
+    const id = b.dataset.deltodo, li = b.closest('.todo');
+    const go = () => { data.todos = data.todos.filter(t => t.id !== id); save(); renderTab(); };
+    if (!li || reduced()) return go();
+    li.style.height = li.offsetHeight + 'px'; void li.offsetHeight; li.classList.add('out'); buzz(8);
+    return setTimeout(go, 300);
+  }
   if (b.dataset.new === 'note') return openNote();
   if (b.dataset.new === 'card') return openCardForm();
   if (b.dataset.new === 'todo') { tab = 'todos'; renderTab(); return $('#tt').focus(); }
@@ -1222,7 +1245,13 @@ app.addEventListener('click', e => {
   if (act === 'customize') return openCustomize(b);
   if (act === 'invlist') return openInvoiceList();
   if (act === 'bio') return enrollBio().then(renderTab);
-  if (act === 'cleardone') { data.todos = data.todos.filter(t => !t.done); save(); renderTab(); }
+  if (act === 'cleardone') {
+    const go = () => { data.todos = data.todos.filter(t => !t.done); save(); renderTab(); };
+    const rows = [...document.querySelectorAll('.todos .todo.done')];
+    if (!rows.length || reduced()) return go();
+    rows.forEach((li, k) => { li.style.height = li.offsetHeight + 'px'; void li.offsetHeight; li.style.transitionDelay = (k * 40) + 'ms'; li.classList.add('out'); });
+    buzz(8); return setTimeout(go, 320 + rows.length * 40);
+  }
 });
 
 boot();
