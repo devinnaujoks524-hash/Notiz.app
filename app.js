@@ -26,6 +26,7 @@ const P = {
   copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/>',
   mail: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 7.5l8 6 8-6"/>',
   eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
   receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
   bag: '<path d="M6 8h12l1 12H5z"/><path d="M9 8V6.5a3 3 0 016 0V8"/>',
   shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/>',
@@ -78,7 +79,7 @@ function dialog({ title, body = '', fields = [], ok = 'OK', cancel = 'Abbrechen'
 }
 
 /* ---------- Sheets (mit Android-Zurück-Taste) ---------- */
-function openSheet(html, { label, cls = '', onClose, origin } = {}) {
+function openSheet(html, { label, cls = '', onClose, origin, originIcon } = {}) {
   const el = document.createElement('div');
   el.className = 'sheet ' + cls;
   el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', label || '');
@@ -89,7 +90,7 @@ function openSheet(html, { label, cls = '', onClose, origin } = {}) {
     const rad = Math.hypot(Math.max(ox, innerWidth - ox), Math.max(oy, innerHeight - oy)) + 12;
     el.classList.add('morph');
     el.style.cssText = `--ox:${ox.toFixed(1)}px;--oy:${oy.toFixed(1)}px;--r:${rad.toFixed(1)}px;--r0:${(Math.min(r.width, r.height) / 2).toFixed(1)}px`;
-    el.insertAdjacentHTML('beforeend', `<span class="mgear" aria-hidden="true" style="left:${ox.toFixed(1)}px;top:${oy.toFixed(1)}px">${ic('gear')}</span>`);
+    el.insertAdjacentHTML('beforeend', `<span class="mgear" aria-hidden="true" style="left:${ox.toFixed(1)}px;top:${oy.toFixed(1)}px">${ic(originIcon || 'gear')}</span>`);
   }
   document.body.append(el);
   requestAnimationFrame(() => el.classList.add('in'));
@@ -347,11 +348,10 @@ function homeParts() {
   };
 }
 function tickHome() {
-  if (tab !== 'home' || !$('#hHello')) return;
-  const p = homeParts();
-  [['#hHello', p.hello], ['#hDate', p.date], ['#hWeek', p.week], ['#hTime', p.time]].forEach(([id, v]) => {
-    const el = $(id); if (el.textContent !== v) el.textContent = v;
-  });
+  if (tab !== 'home' || !$('.home')) return;
+  const p = homeParts(), cfg = homeCfg();
+  [['#hHello', p.hello], ['#hDate', p.date], ['#hWeek', p.week]].forEach(([id, v]) => { const el = $(id); if (el && el.textContent !== v) el.textContent = v; });
+  const t = $('#hTime'); if (t && t.dataset.t !== p.time) { t.dataset.t = p.time; t.innerHTML = timeHtml(cfg.clock, p.time); }
 }
 setInterval(tickHome, 1000);
 
@@ -366,17 +366,93 @@ function viewHome() {
       ${open.length > shown.length ? `<button class="more" data-go="todos">${open.length - shown.length} weitere anzeigen</button>` : ''}
     </section>` : '';
   freshIds.clear();
-  return `<div class="home${cls}">
+  const cfg = homeCfg();
+  return `<div class="home${cls} al-${cfg.align} cs-${cfg.clockSize}">
     <div class="hometop"><div class="hbtns">
+      <button class="iconbtn" data-act="customize" aria-label="Startseite anpassen">${ic('sliders')}</button>
       <button class="iconbtn" data-act="settings" aria-label="Einstellungen">${ic('gear')}</button>
       ${Vault.hasCode ? `<button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button>` : ''}</div></div>
-    <h1 class="hello" id="hHello">${p.hello}</h1>
-    <p class="hdate" id="hDate">${p.date}</p>
-    <time class="htime" id="hTime">${p.time}</time>
-    <p class="hweek" id="hWeek">${p.week}</p>
+    ${homeBlock(cfg, p, true)}
     ${todos}
     ${invHome()}
   </div>`;
+}
+
+/* ---------- Startseite anpassen ---------- */
+const HOME_DEF = { clock: 'thin', clockColor: 'white', clockSize: 'm', greet: 'heavy', greetColor: 'white', align: 'left', show: { greet: true, date: true, week: true, time: true } };
+const homeCfg = () => { const h = data.settings.home || {}; return { ...HOME_DEF, ...h, show: { ...HOME_DEF.show, ...(h.show || {}) } }; };
+const CLOCK_STYLES = [['thin', 'Fein'], ['bold', 'Kräftig'], ['rounded', 'Rund'], ['mono', 'Digital'], ['serif', 'Klassisch'], ['outline', 'Kontur'], ['stack', 'Gestapelt']];
+const GREET_STYLES = [['heavy', 'Kräftig'], ['thin', 'Fein'], ['rounded', 'Rund'], ['serif', 'Klassisch'], ['caps', 'Kapitälchen'], ['mono', 'Digital']];
+const HOME_COLORS = { white: ['#ffffff', '#c9c9d1'], sunset: THEMES.sunset, ocean: THEMES.ocean, lime: THEMES.lime, violet: THEMES.violet, gold: THEMES.gold };
+const HOME_COLOR_NAMES = { white: 'Weiß', sunset: 'Sonnenuntergang', ocean: 'Ozean', lime: 'Lime', violet: 'Violett', gold: 'Gold' };
+
+function timeHtml(style, t) {
+  if (style !== 'stack') return esc(t);
+  const [h, m] = String(t).split(':');
+  return `<span>${esc(h)}</span><span>${esc(m)}</span>`;
+}
+// Begrüßung, Datum, Uhrzeit und Kalenderwoche – so wie die Startseite sie zeigt (live = mit ids für die Uhr-Aktualisierung)
+function homeBlock(cfg, p, live) {
+  const id = n => live ? ` id="${n}"` : '';
+  return `${cfg.show.greet ? `<h1 class="hello hg-${cfg.greet} tc-${cfg.greetColor}"${id('hHello')}>${p.hello}</h1>` : ''}
+    ${cfg.show.date ? `<p class="hdate"${id('hDate')}>${p.date}</p>` : ''}
+    ${cfg.show.time ? `<time class="htime hc-${cfg.clock} tc-${cfg.clockColor}"${id('hTime')} data-t="${p.time}">${timeHtml(cfg.clock, p.time)}</time>` : ''}
+    ${cfg.show.week ? `<p class="hweek"${id('hWeek')}>${p.week}</p>` : ''}`;
+}
+
+function openCustomize(origin) {
+  const colorBtns = (key, label) => `<div class="swatches big" role="radiogroup" aria-label="${label}">${Object.entries(HOME_COLORS).map(([k, [a, b]]) =>
+    `<button type="button" role="radio" data-${key}="${k}" aria-label="${HOME_COLOR_NAMES[k]}" style="background:linear-gradient(135deg,${a},${b})"></button>`).join('')}</div>`;
+  const row = (title, sub, k) => `<div class="row"><div><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</div>
+    <button type="button" class="switch" role="switch" data-show="${k}" aria-label="${title}"></button></div>`;
+  const el = openSheet(`
+    <div class="sheet-top">
+      <button class="iconbtn" data-close aria-label="Schließen">${ic('x')}</button><h2 class="grow center">Startseite anpassen</h2>
+      <button class="btn primary sm" data-close>Fertig</button>
+    </div>
+    <div class="hcprev" id="hcprev" aria-hidden="true"></div>
+    <h3 class="sec">Uhrzeit</h3>
+    <div class="hcrow" role="radiogroup" aria-label="Design der Uhrzeit">${CLOCK_STYLES.map(([k, n]) =>
+      `<button type="button" class="hctile" role="radio" data-clock="${k}"><span class="htime hc-${k} tc-white">10:42</span><small>${n}</small></button>`).join('')}</div>
+    ${colorBtns('clockcolor', 'Farbe der Uhrzeit')}
+    <div class="seg" role="radiogroup" aria-label="Größe der Uhrzeit">
+      <button type="button" role="radio" data-size="s">Klein</button><button type="button" role="radio" data-size="m">Mittel</button><button type="button" role="radio" data-size="l">Groß</button>
+    </div>
+    <h3 class="sec">Begrüßung</h3>
+    <div class="hcrow" role="radiogroup" aria-label="Design der Begrüßung">${GREET_STYLES.map(([k, n]) =>
+      `<button type="button" class="hctile" role="radio" data-greet="${k}"><span class="hello hg-${k} tc-white">Guten Tag</span><small>${n}</small></button>`).join('')}</div>
+    ${colorBtns('greetcolor', 'Farbe der Begrüßung')}
+    <h3 class="sec">Anzeigen</h3>
+    <div class="group">${row('Begrüßung', 'z. B. „Guten Abend“', 'greet')}${row('Datum', 'Wochentag und Tag', 'date')}${row('Uhrzeit', '', 'time')}${row('Kalenderwoche', '', 'week')}</div>
+    <h3 class="sec">Ausrichtung</h3>
+    <div class="seg" role="radiogroup" aria-label="Ausrichtung">
+      <button type="button" role="radio" data-align="left">Links</button><button type="button" role="radio" data-align="center">Mitte</button>
+    </div>`, { label: 'Startseite anpassen', cls: 'customize', origin, originIcon: 'sliders' });
+
+  const paint = () => {
+    const cfg = homeCfg();
+    $('#hcprev', el).innerHTML = `<div class="home al-${cfg.align} cs-${cfg.clockSize}">${homeBlock(cfg, homeParts(), false)}</div>`;
+    const mark = (attr, val) => el.querySelectorAll(`[data-${attr}]`).forEach(b => b.setAttribute('aria-checked', b.dataset[attr] === val));
+    mark('clock', cfg.clock); mark('greet', cfg.greet); mark('clockcolor', cfg.clockColor); mark('greetcolor', cfg.greetColor); mark('size', cfg.clockSize); mark('align', cfg.align);
+    el.querySelectorAll('[data-show]').forEach(b => b.setAttribute('aria-checked', cfg.show[b.dataset.show]));
+  };
+  const set = (patch) => {
+    const cfg = homeCfg();
+    data.settings.home = { ...cfg, ...patch, show: { ...cfg.show, ...(patch.show || {}) } };
+    save(); buzz(6); paint();
+  };
+  el.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const d = b.dataset;
+    if (d.clock) set({ clock: d.clock });
+    else if (d.greet) set({ greet: d.greet });
+    else if (d.clockcolor) set({ clockColor: d.clockcolor });
+    else if (d.greetcolor) set({ greetColor: d.greetcolor });
+    else if (d.size) set({ clockSize: d.size });
+    else if (d.align) set({ align: d.align });
+    else if (d.show) set({ show: { [d.show]: !homeCfg().show[d.show] } });
+  });
+  paint();
 }
 
 /* ---------- Notizen ---------- */
@@ -1143,6 +1219,7 @@ app.addEventListener('click', e => {
   const act = b.dataset.act;
   if (act === 'lock') return lockNow();
   if (act === 'settings') return openSettings(b);
+  if (act === 'customize') return openCustomize(b);
   if (act === 'invlist') return openInvoiceList();
   if (act === 'bio') return enrollBio().then(renderTab);
   if (act === 'cleardone') { data.todos = data.todos.filter(t => !t.done); save(); renderTab(); }
