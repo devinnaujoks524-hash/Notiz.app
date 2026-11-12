@@ -26,6 +26,7 @@ const P = {
   copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/>',
   mail: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 7.5l8 6 8-6"/>',
   eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  bag: '<path d="M6 8h12l1 12H5z"/><path d="M9 8V6.5a3 3 0 016 0V8"/>',
   shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/>',
 };
 const ic = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
@@ -261,9 +262,31 @@ function renderMain() {
   renderTab();
 }
 
+// Das Plus-Menü passt sich dem Bereich an: Home = Notiz/To-do/Visual, Visual = Art der Karte
+function menuHtml(t) {
+  const item = (add, label, icon, i, color) => `<button class="fm-item" role="menuitem" data-add="${add}" style="--i:${i};--a:var(--${color})"><span>${label}</span><span class="fm-ic">${ic(icon)}</span></button>`;
+  return t === 'cards'
+    ? item('card:mail', 'E-Mail', 'mail', 2, 'blue') + item('card:member', 'Kundenkarte', 'bag', 1, 'green') + item('card:bank', 'Bankkarte', 'card', 0, 'violet')
+    : item('card', 'Visualisierung', 'card', 2, 'violet') + item('todo', 'To-do', 'check', 1, 'orange') + item('note', 'Notiz', 'note', 0, 'yellow');
+}
+const tileIcon = c => c.type === 'mail' ? 'mail' : c.type === 'member' ? 'bag' : 'card';
+function tileSub(c) {
+  if (c.type === 'mail') return c.email || 'E-Mail';
+  if (c.type === 'member') return 'Kundenkarte';
+  const l4 = String(c.number || '').replace(/\D/g, '').slice(-4) || c.last4;
+  return l4 ? '•••• ' + l4 : (c.network || 'Bankkarte');
+}
+function tileMarkup(c) {
+  const [a, b, ink] = THEMES[c.theme] || THEMES.sunset;
+  return `<button class="ctile" data-card="${c.id}" style="--a:${a};--b:${b};--ink:${ink}" aria-label="${esc(c.name || 'Karte')} öffnen">
+    <span class="ct-ic">${ic(tileIcon(c))}</span>
+    <span class="ct-tx"><b>${esc(c.name || 'Karte')}</b><small>${esc(tileSub(c))}</small></span></button>`;
+}
+
 function renderTab() {
   const screen = $('#screen'); if (!screen || !data) return;
   setMenu(false);
+  const fm = $('#fabmenu'); if (fm) fm.innerHTML = menuHtml(tab);
   $('#glowwrap')?.classList.toggle('on', tab === 'home');
   screen.innerHTML = { home: viewHome, notes: viewNotes, todos: viewTodos, cards: viewCards }[tab]();
   document.querySelectorAll('[data-tab]').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
@@ -271,7 +294,7 @@ function renderTab() {
   const fabCfg = { home: ['white', 'Hinzufügen'], notes: ['yellow', 'Neue Notiz'], todos: ['orange', 'Neue Aufgabe'], cards: ['violet', 'Neue Karte'] }[tab];
   fab.hidden = !fabCfg;
   if (fabCfg) { fab.style.setProperty('--a', `var(--${fabCfg[0]})`); fab.setAttribute('aria-label', fabCfg[1]); }
-  if (tab === 'home') { fab.setAttribute('aria-haspopup', 'menu'); fab.setAttribute('aria-expanded', 'false'); }
+  if (tab === 'home' || tab === 'cards') { fab.setAttribute('aria-haspopup', 'menu'); fab.setAttribute('aria-expanded', 'false'); }
   else { fab.removeAttribute('aria-haspopup'); fab.removeAttribute('aria-expanded'); }
   if (tab === 'notes') bindNoteSearch();
   if (tab === 'todos') bindTodoForm();
@@ -481,7 +504,7 @@ function collapseTodo(li) {
 function viewCards() {
   return `${header('Visualisierung')}
     ${data.cards.length ? `<p class="sub left">Tippe auf eine Karte, um sie in 3D anzusehen.</p>
-    <div class="stack">${data.cards.map(c => `<button class="cardthumb" data-card="${c.id}" aria-label="${esc(c.name || 'Karte')} öffnen">${cardMarkup(c)}</button>`).join('')}</div>`
+    <div class="cgrid">${data.cards.map(tileMarkup).join('')}</div>`
       : emptyState('card', 'Noch keine Karten', 'Füge Bankkarten, Kundenkarten oder E-Mail-Konten hinzu – sie schweben dann in 3D.')}`;
 }
 
@@ -525,9 +548,9 @@ function openViewer(id) {
 }
 
 const WARN_CARD = 'Alles bleibt verschlüsselt auf deinem Handy. PIN und Prüfnummer (CVV) gibt es hier bewusst nicht – die merkst du dir besser selbst.';
-function openCardForm(id) {
+function openCardForm(id, type) {
   const orig = data.cards.find(x => x.id === id);
-  const c = orig ? { ...orig } : { id: uid(), type: 'bank', theme: 'sunset', name: '', holder: '', number: '', iban: '', exp: '', network: 'Visa', member: '', email: '', pass: '', note: '' };
+  const c = orig ? { ...orig } : { id: uid(), type: type || 'bank', theme: type === 'mail' ? 'ocean' : type === 'member' ? 'lime' : 'sunset', name: '', holder: '', number: '', iban: '', exp: '', network: 'Visa', member: '', email: '', pass: '', note: '' };
   const el = openSheet(`
     <div class="sheet-top">
       <button class="iconbtn" data-close aria-label="Abbrechen">${ic('x')}</button>
@@ -688,7 +711,7 @@ function setMenu(open, focusFirst) {
   m.classList.toggle('open', open); sc.classList.toggle('open', open);
   m.toggleAttribute('inert', !open);
   if (f.hasAttribute('aria-haspopup')) f.setAttribute('aria-expanded', open);
-  if (open) { buzz(8); if (focusFirst) m.querySelector('[data-add="note"]').focus(); }
+  if (open) { buzz(8); if (focusFirst) [...m.querySelectorAll('.fm-item')].pop()?.focus(); }
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && menuOpen) { setMenu(false); $('#fab')?.focus(); } });
 app.addEventListener('click', e => { if (e.target.id === 'scrim') setMenu(false); });
@@ -735,10 +758,10 @@ app.addEventListener('click', e => {
   if (b.dataset.add) {
     const k = b.dataset.add;
     setMenu(false); $('#fab').focus({ preventScroll: true });
-    setTimeout(() => (k === 'note' ? openNote() : k === 'todo' ? openQuickTodo() : openCardForm()), 150);
+    setTimeout(() => (k === 'note' ? openNote() : k === 'todo' ? openQuickTodo() : openCardForm(undefined, k.startsWith('card:') ? k.slice(5) : undefined)), 150);
     return;
   }
-  if (b.id === 'fab') { if (tab === 'home') return setMenu(!menuOpen, e.detail === 0); if (tab === 'notes') openNote(); else if (tab === 'cards') openCardForm(); else if (tab === 'todos') $('#tt').focus(); return; }
+  if (b.id === 'fab') { if (tab === 'home' || tab === 'cards') return setMenu(!menuOpen, e.detail === 0); if (tab === 'notes') openNote(); else if (tab === 'cards') openCardForm(); else if (tab === 'todos') $('#tt').focus(); return; }
   const act = b.dataset.act;
   if (act === 'lock') return lockNow();
   if (act === 'settings') return openSettings();
