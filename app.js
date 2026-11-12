@@ -108,7 +108,15 @@ function popSheet() {
   s.prevFocus?.focus?.({ preventScroll: true });
   sheets[sheets.length - 1]?.el.dispatchEvent(new Event('revive')); // darunterliegende Liste neu zeichnen
 }
-addEventListener('popstate', () => { if (sheets.length) popSheet(); });
+// Zurück-Taste: schließt zuerst Blätter, Menü und Bearbeiten-Modus, geht dann zu Home – und beendet die App nie von selbst.
+if (!history.state?.guard) { history.replaceState({ root: 1 }, ''); history.pushState({ guard: 1 }, ''); }
+addEventListener('popstate', () => {
+  if (sheets.length) return popSheet();
+  history.pushState({ guard: 1 }, ''); // wieder auf die Schutz-Ebene, damit die App offen bleibt
+  if (menuOpen) setMenu(false);
+  else if (noteMode) exitNoteEdit();
+  else if (data && tab !== 'home') switchTab('home');
+});
 function closeAllSheets() { while (sheets.length) { const s = sheets.pop(); s.onClose?.(); s.el.remove(); } }
 
 /* ---------- Start ---------- */
