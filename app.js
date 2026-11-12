@@ -77,11 +77,19 @@ function dialog({ title, body = '', fields = [], ok = 'OK', cancel = 'Abbrechen'
 }
 
 /* ---------- Sheets (mit Android-Zurück-Taste) ---------- */
-function openSheet(html, { label, cls = '', onClose } = {}) {
+function openSheet(html, { label, cls = '', onClose, origin } = {}) {
   const el = document.createElement('div');
   el.className = 'sheet ' + cls;
   el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', label || '');
   el.innerHTML = html;
+  // Aus einem Knopf heraus aufgehen: Der Knopf wächst als Kreis zum ganzen Blatt, das Symbol dreht sich weg.
+  if (origin?.isConnected && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const r = origin.getBoundingClientRect(), ox = r.left + r.width / 2, oy = r.top + r.height / 2;
+    const rad = Math.hypot(Math.max(ox, innerWidth - ox), Math.max(oy, innerHeight - oy)) + 12;
+    el.classList.add('morph');
+    el.style.cssText = `--ox:${ox.toFixed(1)}px;--oy:${oy.toFixed(1)}px;--r:${rad.toFixed(1)}px;--r0:${(Math.min(r.width, r.height) / 2).toFixed(1)}px`;
+    el.insertAdjacentHTML('beforeend', `<span class="mgear" aria-hidden="true" style="left:${ox.toFixed(1)}px;top:${oy.toFixed(1)}px">${ic('gear')}</span>`);
+  }
   document.body.append(el);
   requestAnimationFrame(() => el.classList.add('in'));
   const prevFocus = document.activeElement;
@@ -94,7 +102,7 @@ function popSheet() {
   const s = sheets.pop(); if (!s) return;
   s.onClose?.();
   s.el.classList.remove('in');
-  setTimeout(() => s.el.remove(), 260);
+  setTimeout(() => s.el.remove(), s.el.classList.contains('morph') ? 600 : 260);
   if (Vault.unlocked) renderTab();
   s.prevFocus?.focus?.({ preventScroll: true });
 }
@@ -600,7 +608,7 @@ function openCardForm(id, type) {
 }
 
 /* ---------- Einstellungen ---------- */
-function openSettings() {
+function openSettings(origin) {
   const el = openSheet(`
     <div class="sheet-top"><button class="iconbtn" data-close aria-label="Zurück">${ic('back')}</button><h2 class="grow center">Einstellungen</h2><span class="iconbtn ghost"></span></div>
     <div class="group">
@@ -619,7 +627,7 @@ function openSettings() {
       <label class="row"><div><b>Backup importieren</b><small>Ersetzt alle Daten auf diesem Handy</small></div><input type="file" id="imp" accept=".json,application/json" hidden></label>
     </div>
     <div class="group"><button class="row danger" id="wipe"><div><b>Alle Daten löschen</b></div></button></div>
-    <p class="foot">Lumen 1.0 · Alles bleibt auf diesem Gerät, verschlüsselt mit AES-256.</p>`, { label: 'Einstellungen' });
+    <p class="foot">Lumen 1.0 · Alles bleibt auf diesem Gerät, verschlüsselt mit AES-256.</p>`, { label: 'Einstellungen', origin });
 
   $('#codeSw', el).addEventListener('click', async e => {
     const sw = e.currentTarget;
@@ -750,7 +758,7 @@ app.addEventListener('click', e => {
   if (b.id === 'fab') { if (tab === 'home' || tab === 'cards') return setMenu(!menuOpen, e.detail === 0); if (tab === 'notes') openNote(); else if (tab === 'cards') openCardForm(); else if (tab === 'todos') $('#tt').focus(); return; }
   const act = b.dataset.act;
   if (act === 'lock') return lockNow();
-  if (act === 'settings') return openSettings();
+  if (act === 'settings') return openSettings(b);
   if (act === 'bio') return enrollBio().then(renderTab);
   if (act === 'cleardone') { data.todos = data.todos.filter(t => !t.done); save(); renderTab(); }
 });

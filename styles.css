@@ -398,3 +398,14 @@ nav.tabs button[aria-current="page"] .ic { transform: scale(1.08); }
 .cardmini { display: block; width: 100%; min-width: 0; font-size: min(calc((100vw - 48px) / 38), 14px); border-radius: 1.1em; transition: transform .25s var(--ease); }
 .cardmini .cardflat { box-shadow: 0 8px 22px rgba(0, 0, 0, .5); }
 .cardmini:active { transform: scale(.97); }
+
+/* Einstellungen: das Zahnrad verwandelt sich in das Blatt */
+.sheet.morph { opacity: 1; transform: none; background: var(--s2); clip-path: circle(var(--r0, 22px) at var(--ox) var(--oy));
+  transition: clip-path .55s var(--ease), background .4s .05s var(--ease); }
+.sheet.morph.in { background: #000; clip-path: circle(var(--r) at var(--ox) var(--oy)); }
+.sheet.morph > :not(.mgear) { opacity: 0; transition: opacity .15s; }
+.sheet.morph.in > :not(.mgear) { opacity: 1; transition: opacity .3s .22s; }
+.mgear { position: fixed; width: 22px; height: 22px; margin: -11px 0 0 -11px; max-width: none; display: grid; place-items: center; color: #fff; pointer-events: none;
+  transition: transform .5s var(--ease), opacity .3s; }
+.mgear .ic { width: 22px; height: 22px; }
+.sheet.morph.in .mgear { transform: rotate(140deg) scale(.5); opacity: 0; }
