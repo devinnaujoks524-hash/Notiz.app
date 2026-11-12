@@ -31,6 +31,8 @@ const P = {
   mail: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 7.5l8 6 8-6"/>',
   eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  cal: '<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
   bag: '<path d="M6 8h12l1 12H5z"/><path d="M9 8V6.5a3 3 0 016 0V8"/>',
   shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/>',
@@ -375,7 +377,7 @@ setInterval(tickHome, 1000);
 function viewHome() {
   const p = homeParts(), cls = enter ? ' enter' : '';
   enter = false;
-  const open = data.todos.filter(t => !t.done).sort((a, b) => b.created - a.created);
+  const open = data.todos.filter(t => !t.done).sort(todoSort);
   const shown = open.slice(0, 6);
   const todos = open.length ? `<section class="htodos" id="htodos" aria-label="Offene To-dos">
       <div class="hsec"><span>To-dos</span><b id="hcount">${open.length}</b></div>
@@ -710,20 +712,59 @@ function openNote(id) {
 }
 
 /* ---------- To-dos ---------- */
+// Datum für To-dos
+const todoSort = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.time || '99:99').localeCompare(b.time || '99:99') || b.created - a.created;
+const dayDiff = iso => Math.round((new Date(iso + 'T00:00:00') - new Date(todayIso() + 'T00:00:00')) / 864e5);
+const dueCls = t => t.done ? '' : dayDiff(t.due) < 0 ? 'late' : dayDiff(t.due) === 0 ? 'today' : '';
+function fmtDue(iso, time) {
+  const d = dayDiff(iso);
+  const base = d === 0 ? 'Heute' : d === 1 ? 'Morgen' : d === -1 ? 'Gestern' : new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(iso + 'T00:00:00'));
+  return time ? base + ' · ' + time : base;
+}
+const dateIsoOffset = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+// Auswahl-Chips: Heute / Morgen / Datum, dann Uhrzeit (optional)
+function dateChips(box, draft, redraw) {
+  const open = i => { try { i.showPicker(); } catch { i.focus(); i.click(); } };
+  const hid = `<input type="date" class="vhid" id="pd" tabindex="-1" aria-hidden="true" value="${draft.due}"><input type="time" class="vhid" id="pt" tabindex="-1" aria-hidden="true" value="${draft.time}">`;
+  box.innerHTML = (draft.due
+    ? `<button type="button" class="dchip on" data-d="pick">${ic('cal')}${esc(fmtDue(draft.due))}</button><button type="button" class="dchip${draft.time ? ' on' : ''}" data-d="time">${ic('clock')}${draft.time || 'Uhrzeit'}</button><button type="button" class="dchip x" data-d="clear" aria-label="Datum entfernen">${ic('x')}</button>`
+    : `<button type="button" class="dchip" data-d="today">${ic('cal')}Heute</button><button type="button" class="dchip" data-d="tmr">Morgen</button><button type="button" class="dchip" data-d="pick">Datum …</button>`) + hid;
+  const di = box.querySelector('#pd'), ti = box.querySelector('#pt');
+  box.querySelectorAll('[data-d]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.d;
+    if (k === 'pick') return open(di);
+    if (k === 'time') return open(ti);
+    if (k === 'today') draft.due = todayIso(); else if (k === 'tmr') draft.due = dateIsoOffset(1); else { draft.due = ''; draft.time = ''; }
+    buzz(6); redraw();
+  }));
+  di.addEventListener('change', () => { draft.due = di.value; if (!di.value) draft.time = ''; redraw(); });
+  ti.addEventListener('change', () => { draft.time = ti.value; redraw(); });
+  fadeIn(box);
+}
+// Datum eines bestehenden To-dos ändern (Antippen der Datumszeile)
+function pickTodoDate(id) {
+  const t = data.todos.find(x => x.id === id); if (!t) return;
+  document.querySelectorAll('body > input.vhid').forEach(x => x.remove());
+  const i = document.createElement('input'); i.type = 'date'; i.className = 'vhid'; i.value = t.due || ''; document.body.append(i);
+  i.addEventListener('change', () => { t.due = i.value; if (!t.due) t.time = ''; save(); i.remove(); renderTab(); });
+  try { i.showPicker(); } catch { i.focus(); i.click(); }
+}
+
 function todoItem(t, bare) {
   return `<li class="todo ${t.done ? 'done' : ''} ${freshIds.has(t.id) ? 'pop' : ''}">
     <button class="chk" role="checkbox" aria-checked="${t.done}" data-toggle="${t.id}" aria-label="${esc(t.text)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4L18 8"/></svg></button>
-    <span class="tt">${esc(t.text)}</span>
+    <span class="tx"><span class="tt">${esc(t.text)}</span>${t.due ? `<button class="tdue ${dueCls(t)}" data-tdue="${t.id}" aria-label="Datum ändern">${ic('cal')}${esc(fmtDue(t.due, t.time))}</button>` : ''}</span>
     ${bare ? '' : `<button class="iconbtn sm" data-deltodo="${t.id}" aria-label="Aufgabe löschen">${ic('x')}</button>`}</li>`;
 }
 function viewTodos() {
-  const open = data.todos.filter(t => !t.done).sort((a, b) => b.created - a.created);
+  const open = data.todos.filter(t => !t.done).sort(todoSort);
   const done = data.todos.filter(t => t.done).sort((a, b) => b.doneAt - a.doneAt);
   return `${header('To-dos')}
     <form class="addrow" id="addTodo">
       <input id="tt" placeholder="Neue Aufgabe …" aria-label="Neue Aufgabe" autocomplete="off" enterkeyhint="done" maxlength="300">
       <button class="addbtn" aria-label="Hinzufügen">${ic('plus')}</button>
     </form>
+    <div class="dchips" id="dchips"></div>
     <div class="pills small">
       <span class="pill tiny"><b class="c-orange">${open.length}</b> offen</span>
       <span class="pill tiny"><b class="c-green">${done.length}</b> erledigt</span>
@@ -732,10 +773,13 @@ function viewTodos() {
     ${data.todos.length ? `<ul class="todos">${[...open, ...done].map(todoItem).join('')}</ul>` : emptyState('check', 'Alles erledigt', 'Schreib oben deine erste Aufgabe rein.')}`;
 }
 function bindTodoForm() {
+  const draft = { due: '', time: '' }, box = $('#dchips');
+  const draw = () => dateChips(box, draft, draw);
+  draw();
   $('#addTodo').addEventListener('submit', e => {
     e.preventDefault();
     const v = $('#tt').value.trim(); if (!v) return;
-    data.todos.push({ id: uid(), text: v, done: false, created: Date.now() });
+    data.todos.push({ id: uid(), text: v, done: false, created: Date.now(), due: draft.due, time: draft.time });
     save(); renderTab(); $('#tt').focus();
   });
 }
@@ -991,18 +1035,23 @@ function openQuickTodo() {
     <form class="q-card" id="qf" autocomplete="off">
       <div class="q-top"><h2>Neues To-do</h2><button type="button" class="iconbtn sm" data-close aria-label="Schließen">${ic('x')}</button></div>
       <div class="addrow"><input id="qt" placeholder="Was steht an?" aria-label="Neues To-do" enterkeyhint="done" maxlength="300"><button class="addbtn" aria-label="Hinzufügen">${ic('plus')}</button></div>
+      <div class="dchips" id="qchips"></div>
       <ul class="added" id="added" aria-live="polite"></ul>
     </form>`, { label: 'Neues To-do', cls: 'quick', onClose: () => window.visualViewport?.removeEventListener('resize', kb) });
   window.visualViewport?.addEventListener('resize', kb);
   const input = $('#qt', el), list = $('#added', el);
+  const draft = { due: '', time: '' }, chips = $('#qchips', el);
+  const drawChips = () => dateChips(chips, draft, drawChips);
+  drawChips();
   $('#qf', el).addEventListener('submit', e => {
     e.preventDefault();
     const v = input.value.trim(); if (!v) return;
-    const nt = { id: uid(), text: v, done: false, created: Date.now() };
+    const nt = { id: uid(), text: v, done: false, created: Date.now(), due: draft.due, time: draft.time };
     data.todos.push(nt); freshIds.add(nt.id);
     save(); buzz(10); input.value = ''; input.focus();
     const li = document.createElement('li');
-    li.innerHTML = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4L18 8"/></svg><span>${esc(v)}</span>`;
+    li.innerHTML = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4L18 8"/></svg><span>${esc(v)}${nt.due ? ' · ' + esc(fmtDue(nt.due, nt.time)) : ''}</span>`;
+    draft.due = draft.time = ''; drawChips();
     list.prepend(li); while (list.children.length > 3) list.lastChild.remove();
   });
   setTimeout(() => input.focus(), 380);
@@ -1235,6 +1284,7 @@ app.addEventListener('click', e => {
   if (b.dataset.note) return openNote(b.dataset.note);
   if (b.dataset.card) return openViewer(b.dataset.card);
   if (b.dataset.inv) return openInvoice(b.dataset.inv);
+  if (b.dataset.tdue) return pickTodoDate(b.dataset.tdue);
   if (b.dataset.toggle) return toggleTodo(b.dataset.toggle, b);
   if (b.dataset.deltodo) {
     const id = b.dataset.deltodo, li = b.closest('.todo');
