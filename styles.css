@@ -529,3 +529,9 @@ body.noteedit .fab { opacity: 0; pointer-events: none; transform: scale(.6); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: .01ms !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
 }
+
+/* Rechnung: Formular klappt weich auf und zu */
+.fold { overflow: hidden; max-height: 2200px; transition: max-height .5s var(--ease), opacity .3s, transform .5s var(--ease); }
+.fold.collapsed { max-height: 0; opacity: 0; transform: translateY(-8px); pointer-events: none; }
+.fold[hidden] { display: none; }
+.foldin { display: grid; gap: 12px; padding-bottom: 2px; }

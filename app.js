@@ -1034,7 +1034,7 @@ const allTaxes = () => [...TAXES.flatMap(g => g.items.map(([key, name, rate]) =>
 const invOverdue = i => i.status !== 'paid' && i.due && i.due < todayIso();
 const invChip = i => i.status === 'paid' ? '<span class="chip paid">Bezahlt</span>' : invOverdue(i) ? '<span class="chip late">Überfällig</span>' : '<span class="chip open">Offen</span>';
 function invRow(i) {
-  const sub = i.status === 'paid' ? 'Bezahlt' : i.due ? 'Fällig ' + fmtIso(i.due) : 'Offen';
+  const sub = i.mode === 'simple' ? fmtIso(i.date) : i.status === 'paid' ? 'Bezahlt' : i.due ? 'Fällig ' + fmtIso(i.due) : 'Offen';
   return `<button class="invrow" data-inv="${i.id}"><span class="inv-ic">${ic('receipt')}</span>
     <span class="inv-tx"><b>${esc(i.vendor)}</b><small class="${invOverdue(i) ? 'late' : ''}">${esc(sub)}${i.number ? ' · ' + esc(i.number) : ''}</small></span>
     <span class="inv-amt">${money(i.gross, i.currency)}</span></button>`;
@@ -1085,35 +1085,43 @@ function openInvoiceForm(id) {
     </div>
     <form class="form" id="if" autocomplete="off" onsubmit="return false">
       <label class="field"><span>Aussteller / Firma</span><input name="vendor" value="${esc(inv.vendor)}" placeholder="z. B. Telekom" autocomplete="off"></label>
-      <div class="two">
-        <label class="field"><span>Rechnungsnummer</span><input name="number" value="${esc(inv.number)}" placeholder="optional" autocomplete="off"></label>
-        <label class="field"><span>Rechnungsdatum</span><input name="date" type="date" value="${esc(inv.date)}"></label>
-      </div>
-      <label class="field"><span>Fällig am</span><input name="due" type="date" value="${esc(inv.due)}"></label>
-      <div class="seg" id="modeSeg" role="radiogroup" aria-label="Betrag ist">
-        <button type="button" role="radio" data-mode="gross">Betrag brutto</button><button type="button" role="radio" data-mode="net">Betrag netto</button>
+      <div class="seg" id="modeSeg" role="radiogroup" aria-label="Art der Rechnung">
+        <button type="button" role="radio" data-mode="simple" aria-label="Einfache Rechnung">Einfach</button><button type="button" role="radio" data-mode="gross">Betrag brutto</button><button type="button" role="radio" data-mode="net">Betrag netto</button>
       </div>
       <div class="two">
         <label class="field"><span>Betrag</span><input name="amount" value="${esc(inv.amount)}" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>
         <label class="field"><span>Währung</span><select name="currency">${CURRENCIES.map(c => `<option ${c === inv.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
       </div>
-      <label class="field"><span>Steuer</span><select id="taxSel">${opts}</select></label>
-      <div class="two">
-        <label class="field"><span>Bezeichnung</span><input name="taxName" value="${esc(inv.taxName)}" placeholder="z. B. Sales Tax Texas" autocomplete="off"></label>
-        <label class="field"><span>Satz in %</span><input name="rate" value="${esc(pct(inv.rate))}" inputmode="decimal" placeholder="19" autocomplete="off"></label>
-      </div>
-      <div class="sumbox" id="sum" aria-live="polite"></div>
-      <div class="seg" id="stSeg" role="radiogroup" aria-label="Status">
-        <button type="button" role="radio" data-st="open">Offen</button><button type="button" role="radio" data-st="paid">Bezahlt</button>
-      </div>
-      <label class="field"><span>Notiz</span><textarea name="note" rows="2" placeholder="optional">${esc(inv.note)}</textarea></label>
-      <div class="field"><span>Bild der Rechnung</span><div id="imgbox"></div></div>
+      <label class="field"><span id="dateLbl">Rechnungsdatum</span><input name="date" type="date" value="${esc(inv.date)}"></label>
+      <div class="fold${inv.mode === 'simple' ? ' collapsed' : ''}" id="fullFold"${inv.mode === 'simple' ? ' hidden inert' : ''}><div class="foldin">
+        <div class="two">
+          <label class="field"><span>Rechnungsnummer</span><input name="number" value="${esc(inv.number)}" placeholder="optional" autocomplete="off"></label>
+          <label class="field"><span>Fällig am</span><input name="due" type="date" value="${esc(inv.due)}"></label>
+        </div>
+        <label class="field"><span>Steuer</span><select id="taxSel">${opts}</select></label>
+        <div class="two">
+          <label class="field"><span>Bezeichnung</span><input name="taxName" value="${esc(inv.taxName)}" placeholder="z. B. Sales Tax Texas" autocomplete="off"></label>
+          <label class="field"><span>Satz in %</span><input name="rate" value="${esc(pct(inv.rate))}" inputmode="decimal" placeholder="19" autocomplete="off"></label>
+        </div>
+        <div class="sumbox" id="sum" aria-live="polite"></div>
+        <div class="seg" id="stSeg" role="radiogroup" aria-label="Status">
+          <button type="button" role="radio" data-st="open">Offen</button><button type="button" role="radio" data-st="paid">Bezahlt</button>
+        </div>
+        <label class="field"><span>Notiz</span><textarea name="note" rows="2" placeholder="optional">${esc(inv.note)}</textarea></label>
+        <div class="field"><span>Bild der Rechnung</span><div id="imgbox"></div></div>
+      </div></div>
       <input type="file" accept="image/*" id="imgIn" hidden>
     </form>
     <p class="err" id="ferr" role="alert"></p>`, { label: 'Rechnung', cls: 'form-sheet' });
 
   const $f = n => el.querySelector(`[name="${n}"]`), taxSel = el.querySelector('#taxSel');
   taxSel.value = allTaxes().some(t => t.key === inv.taxKey) ? inv.taxKey : 'custom';
+  const fold = el.querySelector('#fullFold');
+  const setFold = show => { // Rest des Formulars weich ein- und ausklappen
+    clearTimeout(fold._t);
+    if (show) { fold.hidden = false; void fold.offsetHeight; fold.classList.remove('collapsed'); fold.removeAttribute('inert'); }
+    else { fold.classList.add('collapsed'); fold.setAttribute('inert', ''); fold._t = setTimeout(() => { fold.hidden = true; }, reduced() ? 0 : 520); }
+  };
   const sum = () => {
     const c = calcInv(inv.amount, inv.mode, inv.rate);
     el.querySelector('#sum').innerHTML = `<div class="sumrow"><span>Netto</span><span>${money(c.net, inv.currency)}</span></div>
@@ -1122,6 +1130,7 @@ function openInvoiceForm(id) {
   };
   const marks = () => {
     el.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-checked', b.dataset.mode === inv.mode));
+    el.querySelector('#dateLbl').textContent = inv.mode === 'simple' ? 'Datum' : 'Rechnungsdatum';
     el.querySelectorAll('[data-st]').forEach(b => b.setAttribute('aria-checked', b.dataset.st === inv.status));
   };
   el.querySelector('#if').addEventListener('input', e => { const t = e.target; if (t.name) { inv[t.name] = t.value; sum(); } });
@@ -1131,7 +1140,7 @@ function openInvoiceForm(id) {
     else { const t = allTaxes().find(x => x.key === taxSel.value); inv.taxName = t.name; inv.rate = t.rate; $f('taxName').value = t.name; $f('rate').value = pct(t.rate); }
     sum();
   });
-  el.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { inv.mode = b.dataset.mode; marks(); sum(); }));
+  el.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { inv.mode = b.dataset.mode; marks(); sum(); setFold(inv.mode !== 'simple'); buzz(6); }));
   el.querySelectorAll('[data-st]').forEach(b => b.addEventListener('click', () => { inv.status = b.dataset.st; marks(); }));
   const renderImg = () => {
     el.querySelector('#imgbox').innerHTML = inv.image
@@ -1150,9 +1159,14 @@ function openInvoiceForm(id) {
     const err = $('#ferr', el);
     if (!String(inv.vendor).trim()) return (err.textContent = 'Gib Aussteller oder Firma ein.');
     if (!(num(inv.amount) > 0)) return (err.textContent = 'Gib einen Betrag ein.');
-    const c = calcInv(inv.amount, inv.mode, inv.rate), name = String(inv.taxName).trim(), rate = num(inv.rate);
-    Object.assign(inv, { vendor: String(inv.vendor).trim(), taxName: name, rate, net: c.net, tax: c.tax, gross: c.gross });
-    if (name && !allTaxes().some(t => t.name === name && t.rate === rate)) (data.settings.taxes ||= []).push({ name, rate }); // eigene Steuer merken
+    if (inv.mode === 'simple') { // einfache Rechnung: bezahlt, nur Anbieter, Betrag und Datum
+      const a = r2(num(inv.amount));
+      Object.assign(inv, { vendor: String(inv.vendor).trim(), number: '', due: '', note: '', image: '', taxName: '', rate: 0, net: a, tax: 0, gross: a, status: 'paid' });
+    } else {
+      const c = calcInv(inv.amount, inv.mode, inv.rate), name = String(inv.taxName).trim(), rate = num(inv.rate);
+      Object.assign(inv, { vendor: String(inv.vendor).trim(), taxName: name, rate, net: c.net, tax: c.tax, gross: c.gross });
+      if (name && !allTaxes().some(t => t.name === name && t.rate === rate)) (data.settings.taxes ||= []).push({ name, rate }); // eigene Steuer merken
+    }
     if (orig) Object.assign(orig, inv); else data.invoices.push(inv);
     save(); history.back(); toast(orig ? 'Rechnung aktualisiert' : 'Rechnung hinzugefügt');
   });
@@ -1170,12 +1184,12 @@ function openInvoice(id) {
     <div class="invhero"><span id="chipwrap">${invChip(i)}</span><h1>${esc(i.vendor)}</h1>
       <div class="amt">${money(i.gross, i.currency)}</div>${i.number ? `<p class="sub left">Nr. ${esc(i.number)}</p>` : ''}</div>
     <div class="pills info">
-      ${pill('Netto', money(i.net, i.currency))}${pill(`${i.taxName || 'Steuer'} · ${pct(i.rate)} %`, money(i.tax, i.currency))}
-      ${pill('Rechnungsdatum', fmtIso(i.date))}${pill('Fällig am', fmtIso(i.due))}
+      ${i.mode === 'simple' ? '' : pill('Netto', money(i.net, i.currency)) + pill(`${i.taxName || 'Steuer'} · ${pct(i.rate)} %`, money(i.tax, i.currency))}
+      ${pill(i.mode === 'simple' ? 'Datum' : 'Rechnungsdatum', fmtIso(i.date))}${pill('Fällig am', fmtIso(i.due))}
       ${i.note ? `<div class="pill wide"><span class="clip multi"><small>Notiz</small>${esc(i.note)}</span></div>` : ''}
     </div>
     ${i.image ? `<img class="invimg" id="invimg" src="${i.image}" alt="Bild der Rechnung">` : ''}
-    <button class="btn wide invpay" id="paid"></button>`, { label: i.vendor || 'Rechnung' });
+    <button class="btn wide invpay" id="paid"${i.mode === 'simple' ? ' hidden' : ''}></button>`, { label: i.vendor || 'Rechnung' });
   const paidBtn = $('#paid', el);
   const sync = () => { $('#chipwrap', el).innerHTML = invChip(i); paidBtn.textContent = i.status === 'paid' ? 'Wieder auf offen setzen' : 'Als bezahlt markieren'; popEl($('#chipwrap', el)); };
   sync();
