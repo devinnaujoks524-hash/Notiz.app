@@ -554,3 +554,19 @@ body.noteedit .fab { opacity: 0; pointer-events: none; transform: scale(.6); }
 .dchip.x { padding: 0 10px; }
 .q-card .dchip { background: var(--s2); }
 .vhid { position: fixed; left: 50%; top: 38%; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+
+/* Insel (Erinnerung von oben) */
+.island { position: fixed; z-index: 120; left: 50%; top: calc(var(--st) + 10px); width: min(calc(100vw - 28px), 360px); min-height: 62px; padding: 10px 20px 10px 12px;
+  display: flex; align-items: center; gap: 12px; border-radius: 34px; background: #000; color: #fff; touch-action: none; cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .1), 0 18px 44px rgba(0, 0, 0, .75); transform: translate(-50%, -140%) scale(.55); transform-origin: 50% 0; opacity: 0; will-change: transform; }
+.island.in { animation: islIn .66s cubic-bezier(.2, .9, .25, 1.12) forwards; }
+.island.out { animation: islOut .5s cubic-bezier(.5, 0, .8, .4) forwards; }
+@keyframes islIn { 0% { transform: translate(-50%, -140%) scale(.55); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(-50%, 0) scale(1); opacity: 1; } }
+@keyframes islOut { 0% { transform: translate(-50%, 0) scale(1); opacity: 1; } 100% { transform: translate(-50%, -140%) scale(.55); opacity: 0; } }
+.island > * { animation: fadeIn .4s ease-out .3s backwards; }
+.island.out > * { animation: none; }
+.isl-ic { width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--orange); color: #000; box-shadow: 0 0 18px color-mix(in srgb, var(--orange) 50%, transparent); }
+.isl-ic .ic { width: 22px; height: 22px; stroke-width: 2.6; }
+.isl-tx { min-width: 0; }
+.isl-tx small { display: block; color: var(--orange); font-size: .78rem; font-weight: 700; letter-spacing: .02em; }
+.isl-tx b { display: block; font-size: 1.02rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

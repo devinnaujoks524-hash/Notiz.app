@@ -292,6 +292,7 @@ function renderMain() {
     <button class="fab" id="fab" aria-label="Hinzufügen">${ic('plus')}</button>`;
   enter = true;
   renderTab();
+  setTimeout(() => checkTodoIsland(true), 1500);
 }
 
 // Das Plus-Menü passt sich dem Bereich an: Home = Notiz/To-do/Visual, Visual = Art der Karte
@@ -808,6 +809,52 @@ function collapseTodo(li) {
     }
   }, reduce ? 0 : 420);
 }
+
+/* ---------- Insel: Erinnerung, die von oben herunterfährt ---------- */
+let islandQ = [], islandBusy = false, islandLast = 0;
+const islandNotified = new Set();
+function island(o) { islandQ.push(o); if (!islandBusy) nextIsland(); }
+function nextIsland() {
+  const o = islandQ.shift(); if (!o) { islandBusy = false; return; }
+  islandBusy = true;
+  const el = document.createElement('div');
+  el.className = 'island'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+  el.innerHTML = `<span class="isl-ic">${ic(o.icon || 'check')}</span><span class="isl-tx"><small>${esc(o.title)}</small><b>${esc(o.text)}</b></span>`;
+  document.body.append(el); void el.offsetWidth; el.classList.add('in'); buzz([14, 40, 10]);
+  let closed = false, y0 = null;
+  const timer = setTimeout(() => close(), o.ms || 4300);
+  const close = go => {
+    if (closed) return; closed = true; clearTimeout(timer);
+    el.classList.remove('in'); el.classList.add('out');
+    setTimeout(() => { el.remove(); nextIsland(); }, 520);
+    if (go) o.onTap?.();
+  };
+  el.addEventListener('click', () => close(true));
+  el.addEventListener('pointerdown', e => { y0 = e.clientY; });
+  el.addEventListener('pointermove', e => { if (y0 != null && y0 - e.clientY > 14) { y0 = null; close(); } }); // nach oben wischen = wegschieben
+}
+// summary = beim Öffnen: Überblick über alles, was heute fällig oder überfällig ist. Sonst: nur To-dos, deren Uhrzeit gerade erreicht ist.
+function checkTodoIsland(summary) {
+  if (!data) return;
+  const goTodos = () => { if (data) switchTab('todos'); };
+  if (summary) {
+    islandLast = Date.now();
+    const due = data.todos.filter(t => !t.done && t.due && dayDiff(t.due) <= 0).sort(todoSort);
+    if (due.length) {
+      const n = due.length, late = due.filter(t => dayDiff(t.due) < 0).length, first = due[0];
+      island({ title: n === 1 ? (late ? 'Überfällig' : first.time ? 'Heute · ' + first.time : 'Heute') : `${n} To-dos ${late === n ? 'überfällig' : 'für heute'}`,
+        text: n === 1 ? first.text : `${first.text} und ${n - 1} weitere`, onTap: goTodos });
+      due.forEach(t => islandNotified.add(t.id));
+    }
+    return;
+  }
+  const now = new Date(), hhmm = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+  data.todos.filter(t => !t.done && t.due === todayIso() && t.time && t.time <= hhmm && !islandNotified.has(t.id)).forEach(t => {
+    islandNotified.add(t.id); island({ title: 'Jetzt · ' + t.time, text: t.text, onTap: goTodos });
+  });
+}
+setInterval(() => checkTodoIsland(false), 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && data && Date.now() - islandLast > 15 * 60e3) setTimeout(() => checkTodoIsland(true), 600); });
 
 /* ---------- Visualisierung ---------- */
 function viewCards() {
