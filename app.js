@@ -7,7 +7,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 const buzz = ms => { try { navigator.vibrate?.(ms); } catch {} };
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-const fadeIn = el => { if (el && !reduced()) el.animate?.([{ opacity: .35, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)' }); };
+// Im Glas-Design nur schieben statt einblenden: Durchsichtigkeit auf einem Behälter würde die Lichtbrechung seiner Glasflächen kurz abschalten
+const fadeIn = el => { if (el && !reduced()) el.animate?.([document.documentElement.dataset.theme === 'glass' ? { transform: 'translateY(8px)' } : { opacity: .35, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)' }); };
 const popEl = el => { if (el && !reduced()) el.animate?.([{ transform: 'scale(.94)', opacity: .5 }, { transform: 'none', opacity: 1 }], { duration: 300, easing: 'cubic-bezier(.2,.9,.25,1.1)' }); };
 const shake = el => { if (el && !reduced()) el.animate?.([{ transform: 'translateX(0)' }, { transform: 'translateX(-9px)' }, { transform: 'translateX(8px)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(4px)' }, { transform: 'none' }], { duration: 380, easing: 'ease-out' }); };
 
@@ -110,8 +111,115 @@ function applyTheme(theme, wall) {
   const r = document.documentElement;
   if (theme === 'glass') r.dataset.theme = 'glass'; else delete r.dataset.theme;
   r.dataset.wall = WALLS.some(w => w[0] === wall) ? wall : 'aurora';
-  $('meta[name="theme-color"]')?.setAttribute('content', theme === 'glass' ? '#06060b' : '#000000');
+  $('meta[name="theme-color"]')?.setAttribute('content', theme === 'glass' ? '#05050a' : '#000000');
+  // offene Blätter an das Design anpassen (Glas: eigenes Hintergrundbild, kein Kreis-Ausschnitt – der würde die Lichtbrechung abschalten)
+  sheets.forEach(({ el }) => {
+    if (theme === 'glass' && !el.classList.contains('quick')) { el.classList.remove('morph'); el.querySelector('.mgear')?.remove(); if (!el.querySelector(':scope > .wall')) el.insertAdjacentHTML('afterbegin', '<div class="wall" aria-hidden="true"></div>'); }
+  });
+  lgSync();
 }
+
+/* ---------- Flüssiges Glas: echte Lichtbrechung am Rand ---------- */
+// Jede Glasfläche bekommt einen eigenen SVG-Filter als backdrop-filter: Eine Verschiebungskarte biegt den Hintergrund am Rand
+// wie eine Linse, eine zweite Karte legt den Lichtrand darüber. Das können nur Chromium-Browser (Chrome, Edge, Samsung Internet);
+// überall sonst bleibt es bei mattem Glas mit Rand per CSS.
+const LG_KINDS = [
+  ['dark', '#toast, .island, .live, .dlg, .nbar, .ulock', { blur: 8, scale: 54, bezel: 20, rim: 1 }],
+  ['bar', 'nav.tabs, .fab', { blur: 9, scale: 60, bezel: 22, rim: 1 }], // liegt über scrollendem Inhalt: stärker weichzeichnen, damit die Beschriftung lesbar bleibt
+  ['clear', '.iconbtn:not(.sm), .fm-item, .search, .addrow, .seg, .dchip, .more, .btn:not(.primary):not(.danger)', { blur: 2.2, scale: 62, bezel: 22, rim: 1 }],
+  ['frost', '.note, .todo, .group, .invrow, .prog, .pinnote, .sumbox, .pill, .hctile, .themetile, .hcprev, .nbody, .field input, .field select, .field textarea', { blur: 7, scale: 48, bezel: 18, rim: .9 }],
+];
+const LG_SEL = LG_KINDS.map(k => k[1]).join(', ');
+const lg = { ok: /Chrome\/\d+/.test(navigator.userAgent) && !!window.CSS?.supports?.('backdrop-filter', 'url(#a)'), on: false, n: 0, made: new Map(), timers: new WeakMap(), defs: null, ro: null, mo: null };
+// Zeichnet die zwei Karten für eine abgerundete Fläche: Verschiebung (R = x, G = y) in halber Auflösung, Lichtrand in voller
+function lgMaps(w, h, r, bez, rim) {
+  const make = (cw, ch, fn) => {
+    const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+    const ctx = c.getContext('2d'), img = ctx.createImageData(cw, ch), d = img.data, hx = w / 2, hy = h / 2, kx = w / cw, ky = h / ch;
+    for (let py = 0, i = 0; py < ch; py++) for (let px = 0; px < cw; px++, i += 4) {
+      const x = (px + .5) * kx - hx, y = (py + .5) * ky - hy, qx = Math.abs(x) - (hx - r), qy = Math.abs(y) - (hy - r);
+      let nx = 0, ny = 0, dist; // dist = Abstand zum Rand (innen positiv), n = Richtung nach außen
+      if (qx > 0 && qy > 0) { const l = Math.hypot(qx, qy) || 1; nx = qx / l * Math.sign(x); ny = qy / l * Math.sign(y); dist = r - l; }
+      else if (qx > qy) { nx = Math.sign(x); dist = r - qx; } else { ny = Math.sign(y); dist = r - qy; }
+      fn(d, i, nx, ny, dist);
+    }
+    ctx.putImageData(img, 0, 0); return c.toDataURL();
+  };
+  const L = Math.SQRT1_2; // Licht kommt von oben links
+  return [
+    make(Math.max(2, Math.ceil(w / 2)), Math.max(2, Math.ceil(h / 2)), (d, i, nx, ny, dist) => {
+      const t = Math.min(1, Math.max(0, 1 - dist / bez)), m = t * t * t; // am Rand stark, nach innen schnell null
+      d[i] = 128 - nx * m * 127; d[i + 1] = 128 - ny * m * 127; d[i + 2] = 128; d[i + 3] = 255;
+    }),
+    make(w, h, (d, i, nx, ny, dist) => {
+      const t = Math.min(1, Math.max(0, 1 - dist / bez)), edge = Math.max(0, 1 - Math.abs(dist - .9) / 1.15), dir = Math.abs(nx * L + ny * L);
+      d[i] = d[i + 1] = d[i + 2] = 255; d[i + 3] = Math.min(255, (edge * (.14 + .86 * Math.pow(dir, 2)) + .07 * t * t) * rim * 255);
+    }),
+  ];
+}
+function lgSpec(el) {
+  const w = el.offsetWidth, h = el.offsetHeight;
+  if (w < 20 || h < 20 || w * h > 340000) return null;
+  const kind = LG_KINDS.find(k => el.matches(k[1])); if (!kind) return null;
+  const cs = getComputedStyle(el).borderTopLeftRadius; let r = parseFloat(cs) || 0; if (cs.includes('%')) r = r / 100 * Math.min(w, h);
+  r = Math.round(Math.min(r, w / 2, h / 2));
+  return { w, h, r, kind, key: `${kind[0]}-${w}-${h}-${r}` };
+}
+function lgFilter(sp) {
+  let id = lg.made.get(sp.key); if (id) return id;
+  const o = sp.kind[2], [dm, sm] = lgMaps(sp.w, sp.h, sp.r, Math.min(o.bezel, Math.min(sp.w, sp.h) / 2), o.rim), box = `x="0" y="0" width="${sp.w}" height="${sp.h}" preserveAspectRatio="none"`;
+  id = 'lg' + (++lg.n);
+  lg.defs.insertAdjacentHTML('beforeend', `<filter id="${id}" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="${o.blur}" edgeMode="duplicate" result="b"/>
+    <feImage href="${dm}" ${box} result="m"/>
+    <feDisplacementMap in="b" in2="m" scale="${o.scale}" xChannelSelector="R" yChannelSelector="G" result="d"/>
+    <feColorMatrix in="d" type="saturate" values="1.3" result="c"/>
+    <feImage href="${sm}" ${box} result="s"/>
+    <feComposite in="s" in2="c" operator="over"/></filter>`);
+  lg.made.set(sp.key, id);
+  return id;
+}
+function lgApply(el) {
+  const sp = lgSpec(el);
+  if (!sp) { el.style.removeProperty('--lg'); el._lgKey = ''; return; }
+  el.style.setProperty('--lg', `url(#${lgFilter(sp)})`); el._lgKey = sp.key;
+}
+function lgScan(root) {
+  if (root.matches?.(LG_SEL)) { lg.ro.observe(root); lgApply(root); }
+  root.querySelectorAll?.(LG_SEL).forEach(el => { lg.ro.observe(el); lgApply(el); });
+  if (lg.made.size > 90) { // alte, nicht mehr benutzte Filter wegräumen
+    const used = new Set([...document.querySelectorAll('[style*="--lg"]')].map(el => el.style.getPropertyValue('--lg').slice(5, -1)));
+    for (const [key, id] of lg.made) if (!used.has(id)) { document.getElementById(id)?.remove(); lg.made.delete(key); }
+  }
+}
+function lgSync() {
+  const want = lg.ok && getTheme() === 'glass' && lsGet('lumen-lens') !== '0' && !matchMedia('(prefers-reduced-transparency: reduce), (prefers-contrast: more)').matches;
+  if (want === lg.on) return;
+  lg.on = want; document.documentElement.toggleAttribute('data-lg', want);
+  if (!want) {
+    lg.mo.disconnect(); lg.ro.disconnect();
+    document.querySelectorAll('[style*="--lg"]').forEach(el => { el.style.removeProperty('--lg'); el._lgKey = ''; });
+    return;
+  }
+  if (!lg.defs) {
+    document.body.insertAdjacentHTML('beforeend', '<svg width="0" height="0" aria-hidden="true" style="position:absolute"><defs id="lgdefs"></defs></svg>');
+    lg.defs = $('#lgdefs');
+    lg.mo = new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) lgScan(n); });
+    lg.ro = new ResizeObserver(es => es.forEach(({ target: el }) => {
+      if (!el.isConnected) return lg.ro.unobserve(el);
+      const sp = lgSpec(el), key = sp ? sp.key : '';
+      if (key === el._lgKey) return;
+      clearTimeout(lg.timers.get(el));
+      if (!sp || lg.made.has(key)) return lgApply(el);
+      // Die Größe ändert sich gerade (Animation): so lange nur weichzeichnen, erst in Ruhe neu berechnen
+      el.style.removeProperty('--lg'); el._lgKey = '';
+      lg.timers.set(el, setTimeout(() => { if (lg.on && el.isConnected) lgApply(el); }, 150));
+    }));
+  }
+  lg.mo.observe(document.body, { childList: true, subtree: true });
+  lgScan(document.body);
+}
+matchMedia('(prefers-reduced-transparency: reduce), (prefers-contrast: more)').addEventListener?.('change', lgSync);
 applyTheme(getTheme(), getWall()); // beim Start: Farbe der Statusleiste an das gewählte Design angleichen
 // Wechselt das Design; das neue Aussehen wächst als Kreis aus dem angetippten Knopf
 function setTheme(theme, wall, origin, after) {
@@ -162,7 +270,9 @@ function openSheet(html, { label, cls = '', onClose, origin, originIcon } = {}) 
   el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', label || '');
   el.innerHTML = html;
   // Aus einem Knopf heraus aufgehen: Der Knopf wächst als Kreis zum ganzen Blatt, das Symbol dreht sich weg.
-  if (origin?.isConnected && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const glass = getTheme() === 'glass';
+  if (glass && !/\bquick\b/.test(cls)) el.insertAdjacentHTML('afterbegin', '<div class="wall" aria-hidden="true"></div>'); // Glas: das Blatt bringt sein eigenes Hintergrundbild mit und schiebt sich von unten hoch
+  if (!glass && origin?.isConnected && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     const r = origin.getBoundingClientRect(), ox = r.left + r.width / 2, oy = r.top + r.height / 2;
     const rad = Math.hypot(Math.max(ox, innerWidth - ox), Math.max(oy, innerHeight - oy)) + 12;
     el.classList.add('morph');
@@ -172,7 +282,7 @@ function openSheet(html, { label, cls = '', onClose, origin, originIcon } = {}) 
   document.body.append(el);
   requestAnimationFrame(() => el.classList.add('in'));
   const prevFocus = document.activeElement;
-  sheets.push({ el, onClose, prevFocus });
+  sheets.push({ el, onClose, prevFocus }); syncCover();
   history.pushState({ sheet: sheets.length }, '');
   el.addEventListener('click', e => { if (e.target.closest('[data-close]')) history.back(); });
   return el;
@@ -181,7 +291,8 @@ function popSheet() {
   const s = sheets.pop(); if (!s) return;
   s.onClose?.();
   s.el.classList.remove('in');
-  setTimeout(() => s.el.remove(), s.el.classList.contains('morph') ? 600 : 260);
+  setTimeout(() => s.el.remove(), s.el.classList.contains('morph') ? 600 : getTheme() === 'glass' ? 520 : 260);
+  syncCover();
   if (Vault.unlocked) renderTab();
   s.prevFocus?.focus?.({ preventScroll: true });
   sheets[sheets.length - 1]?.el.dispatchEvent(new Event('revive')); // darunterliegende Liste neu zeichnen
@@ -195,7 +306,13 @@ addEventListener('popstate', () => {
   else if (noteMode) exitNoteEdit();
   else if (data && tab !== 'home') switchTab('home');
 });
-function closeAllSheets() { while (sheets.length) { const s = sheets.pop(); s.onClose?.(); s.el.remove(); } }
+function closeAllSheets() { while (sheets.length) { const s = sheets.pop(); s.onClose?.(); s.el.remove(); } syncCover(); }
+// Liegt ein ganzes Blatt über der App, wird sie (nach dem Einfahren) ausgeblendet – spart im Glas-Design viel Rechenarbeit
+function syncCover() {
+  let cover = false;
+  for (let i = sheets.length - 1; i >= 0; i--) { sheets[i].el.classList.toggle('under', cover); if (!sheets[i].el.classList.contains('quick')) cover = true; }
+  document.body.classList.toggle('covered', cover);
+}
 
 /* ---------- Start ---------- */
 async function boot() {
@@ -406,7 +523,7 @@ function switchTab(next) {
     if (id !== swapId) return;
     screen.getAnimations?.().forEach(a => a.cancel()); // Ausblend-Animation (fill: forwards) lösen, sonst bleibt der Bildschirm bei Opazität 0 hängen
     enter = true; renderTab(); scrollTo(0, 0); if (tab !== 'home') staggerScreen();
-    if (tab !== 'home' && screen.animate) screen.animate([{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: 340, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    if (tab !== 'home' && screen.animate) screen.animate([getTheme() === 'glass' ? { transform: 'translateY(18px)' } : { opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: getTheme() === 'glass' ? 460 : 340, easing: 'cubic-bezier(.2,.8,.2,1)' });
   };
   if (!screen?.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return show();
   const exit = screen.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px)' }], { duration: 120, easing: 'ease-in', fill: 'forwards' });
@@ -1158,6 +1275,8 @@ function openSettings(origin) {
     <div class="group collapsible${getTheme() === 'glass' ? '' : ' collapsed'}" id="wallGroup"${getTheme() === 'glass' ? '' : ' inert'}>
       <div class="wallrow"><b>Hintergrund</b>
         <div class="swatches big" role="radiogroup" aria-label="Hintergrund">${WALLS.map(([k, n]) => `<button type="button" role="radio" data-wall="${k}" aria-label="${n}"></button>`).join('')}</div></div>
+      <div class="row"><div><b>Lichtbrechung</b><small>${lg.ok ? 'Der Hintergrund biegt sich am Rand wie durch echtes Glas. Ausschalten, falls es ruckelt.' : 'In diesem Browser nicht verfügbar – geht in Chrome.'}</small></div>
+        <button class="switch" id="lensSw" role="switch" aria-checked="${lg.ok && lsGet('lumen-lens') !== '0'}" aria-label="Lichtbrechung" ${lg.ok ? '' : 'disabled'}></button></div>
     </div>
     <h3 class="sec">Sicherheit</h3>
     <div class="group">
@@ -1186,6 +1305,7 @@ function openSettings(origin) {
     g.classList.toggle('collapsed', th !== 'glass'); g.toggleAttribute('inert', th !== 'glass');
   };
   markTheme();
+  $('#lensSw', el).addEventListener('click', e => { const on = lsGet('lumen-lens') === '0'; lsSet('lumen-lens', on ? '1' : '0'); e.currentTarget.setAttribute('aria-checked', on); buzz(6); lgSync(); });
   el.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { if (b.dataset.pick === getTheme()) return; buzz(10); setTheme(b.dataset.pick, getWall(), b, markTheme); }));
   el.querySelectorAll('.wallrow [data-wall]').forEach(b => b.addEventListener('click', () => { if (b.dataset.wall === getWall()) return; buzz(6); setTheme('glass', b.dataset.wall, b, markTheme); }));
 

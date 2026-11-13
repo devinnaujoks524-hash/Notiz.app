@@ -6,9 +6,16 @@
   --ease: cubic-bezier(.2, .8, .2, 1);
   --t3: #8b8b95; --t4: #7c7c86; --mix: #000;
   --w1: #ff7a1a; --w2: #2a6bff; --w3: #ff3b9a;
-  --wall: radial-gradient(95% 62% at 100% 0%, color-mix(in srgb, var(--w1) 40%, transparent), transparent 72%),
-    radial-gradient(95% 62% at 0% 100%, color-mix(in srgb, var(--w2) 44%, transparent), transparent 72%),
-    radial-gradient(62% 42% at 0% 26%, color-mix(in srgb, var(--w3) 24%, transparent), transparent 76%), #06060b;
+  --wall: linear-gradient(180deg, rgba(5, 5, 10, .46), rgba(5, 5, 10, .6)),
+    radial-gradient(circle at 132% 116%, transparent 14%,
+      color-mix(in srgb, var(--w3) 40%, #000) 15%, var(--w3) 19.5%, color-mix(in srgb, var(--w3) 80%, #fff) 22.4%, #05050a 23%,
+      #05050a 26%, color-mix(in srgb, var(--w1) 35%, #000) 27%, var(--w1) 33%, color-mix(in srgb, var(--w1) 80%, #fff) 37%, #05050a 37.7%, #05050a 44%,
+      color-mix(in srgb, var(--w2) 40%, #000) 45%, var(--w2) 50.5%, color-mix(in srgb, var(--w2) 80%, #fff) 54%, #05050a 54.7%,
+      #05050a 58.5%, color-mix(in srgb, var(--w1) 35%, #000) 59.5%, var(--w1) 66%, color-mix(in srgb, var(--w1) 80%, #fff) 70.2%, #05050a 71%,
+      #05050a 73.5%, color-mix(in srgb, var(--w3) 45%, #000) 74.2%, var(--w3) 77%, color-mix(in srgb, var(--w3) 80%, #fff) 78.4%, #05050a 79%,
+      #05050a 83%, color-mix(in srgb, var(--w2) 35%, #000) 84%, var(--w2) 90%, color-mix(in srgb, var(--w2) 80%, #fff) 93.4%, transparent 94.2%),
+    radial-gradient(95% 62% at 100% 0%, color-mix(in srgb, var(--w1) 40%, transparent), transparent 72%),
+    radial-gradient(95% 62% at 0% 100%, color-mix(in srgb, var(--w2) 44%, transparent), transparent 72%), #05050a;
   --sb: env(safe-area-inset-bottom, 0px); --st: env(safe-area-inset-top, 0px);
   color-scheme: dark;
 }
@@ -725,67 +732,87 @@ body.has-live .screen { padding-top: calc(var(--st) + 60px); }
 .tmins .dchip { flex: 1; min-width: 0; padding: 0; justify-content: center; white-space: nowrap; }
 
 /* ================= Glas-Design (umschaltbar in den Einstellungen) ================= */
+@property --lg { syntax: "*"; inherits: false; }
+@keyframes riseY { from { transform: translateY(18px); } }
 :root[data-theme="glass"] {
-  --bg: #06060b; --s1: rgba(255, 255, 255, .075); --s2: rgba(255, 255, 255, .12); --s3: rgba(255, 255, 255, .19); --line: rgba(255, 255, 255, .13);
-  --t2: rgba(255, 255, 255, .8); --t3: rgba(255, 255, 255, .72); --t4: rgba(255, 255, 255, .66); --mix: transparent;
-  --edge: inset 1px 1px 0 rgba(255, 255, 255, .2), inset -1px -1px 0 rgba(255, 255, 255, .07), inset 0 0 0 1px rgba(255, 255, 255, .06), 0 10px 24px -12px rgba(0, 0, 0, .5);
-  --edge-hi: inset 1px 1.5px 0 rgba(255, 255, 255, .46), inset -1px -1px 0 rgba(255, 255, 255, .18), inset 0 0 0 1px rgba(255, 255, 255, .1);
-  --blur: blur(26px) saturate(1.8);
+  --bg: #05050a; --s1: rgba(10, 10, 18, .3); --s2: rgba(255, 255, 255, .07); --s3: rgba(255, 255, 255, .19); --line: rgba(255, 255, 255, .13);
+  --t2: rgba(255, 255, 255, .82); --t3: rgba(255, 255, 255, .74); --t4: rgba(255, 255, 255, .68); --mix: transparent;
+  --rim: inset 1px 1px 0 rgba(255, 255, 255, .34), inset -1px -1px 0 rgba(255, 255, 255, .14), inset 0 0 0 1px rgba(255, 255, 255, .07);
+  --drop: 0 12px 28px -14px rgba(0, 0, 0, .65);
+  --edge: var(--rim), var(--drop); --frost: blur(18px) saturate(1.6);
 }
+/* Mit Lichtbrechung zeichnet der Filter den Lichtrand selbst */
+:root[data-theme="glass"][data-lg] { --edge: var(--drop); }
+/* Ohne Lichtbrechung: Karten etwas fester, dafür ohne Weichzeichner */
+:root[data-theme="glass"]:not([data-lg]) { --s1: rgba(22, 22, 34, .62); --s2: rgba(255, 255, 255, .11); }
 [data-wall="aurora"] { --w1: #ff7a1a; --w2: #2a6bff; --w3: #ff3b9a; }
 [data-wall="ocean"] { --w1: #00b4ff; --w2: #3a48ff; --w3: #00dcae; }
 [data-wall="sunset"] { --w1: #ff3b7f; --w2: #ff8a1f; --w3: #a66bff; }
-[data-wall="forest"] { --w1: #2fd86b; --w2: #0fa7a0; --w3: #c2ec3c; }
-[data-wall="graphite"] { --w1: #a2a2b8; --w2: #5c5c74; --w3: #80809a; }
-/* Hintergrundbild: weiche Farbflächen, die langsam treiben */
-.wall { display: none; position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: #06060b; }
+[data-wall="forest"] { --w1: #27c45f; --w2: #0fa7a0; --w3: #9fce34; }
+[data-wall="graphite"] { --w1: #8c8ca4; --w2: #5c5c74; --w3: #74748c; }
+/* Hintergrundbild: glänzende, geschwungene Bänder */
+.wall { display: none; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--wall); }
 [data-theme="glass"] .wall { display: block; }
-.wall i { position: absolute; border-radius: 50%; filter: blur(72px); will-change: transform; }
-.wall i:nth-child(1) { top: -16%; right: -32%; width: min(96vmin, 640px); height: min(96vmin, 640px); background: var(--w1); opacity: .52; animation: drift 24s ease-in-out infinite alternate; }
-.wall i:nth-child(2) { bottom: -20%; left: -34%; width: min(104vmin, 680px); height: min(104vmin, 680px); background: var(--w2); opacity: .54; animation: drift 30s ease-in-out infinite alternate-reverse; }
-.wall i:nth-child(3) { top: 24%; left: -30%; width: min(64vmin, 420px); height: min(64vmin, 420px); background: var(--w3); opacity: .36; animation: drift 38s ease-in-out infinite alternate; }
-.wall::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(6, 6, 11, .08), rgba(6, 6, 11, .34)); }
+[data-theme="glass"] body.covered #app { visibility: hidden; transition: visibility 0s .5s; }
 :where([data-theme="glass"]) body { background: transparent; }
 :where([data-theme="glass"]) .glowwrap { display: none; }
-:where([data-theme="glass"]) .pill, :where([data-theme="glass"]) .search, :where([data-theme="glass"]) .note, :where([data-theme="glass"]) .addrow, :where([data-theme="glass"]) .todo, :where([data-theme="glass"]) .group, :where([data-theme="glass"]) .seg, :where([data-theme="glass"]) .more, :where([data-theme="glass"]) .invrow, :where([data-theme="glass"]) .sumbox, :where([data-theme="glass"]) .prog, :where([data-theme="glass"]) .pinnote, :where([data-theme="glass"]) .hctile, :where([data-theme="glass"]) .dchip, :where([data-theme="glass"]) .btn, :where([data-theme="glass"]) .iconbtn, :where([data-theme="glass"]) .themetile, :where([data-theme="glass"]) .added li { box-shadow: var(--edge); }
-:where([data-theme="glass"]) .iconbtn.sm { box-shadow: none; }
-:where([data-theme="glass"]) .btn.primary, :where([data-theme="glass"]) .nb-done { background: rgba(255, 255, 255, .92); }
-:where([data-theme="glass"]) .pill.act { box-shadow: var(--edge); }
-:where([data-theme="glass"]) .sheet, :where([data-theme="glass"]) .sheet.morph, :where([data-theme="glass"]) .sheet.morph.in { background: var(--wall); }
-:where([data-theme="glass"]) .sheet.quick { background: rgba(4, 4, 10, .3); -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4); }
-:where([data-theme="glass"]) .sheet.quick > .q-card { background: rgba(46, 46, 62, .5); box-shadow: var(--edge-hi), 0 -20px 60px rgba(0, 0, 0, .35); }
-:where([data-theme="glass"]) nav.tabs { background: rgba(255, 255, 255, .09); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); box-shadow: var(--edge-hi), 0 14px 40px rgba(0, 0, 0, .35); }
-:where([data-theme="glass"]) nav.tabs button { color: rgba(255, 255, 255, .64); }
-:where([data-theme="glass"]) nav.tabs button[aria-current="page"] { background: rgba(255, 255, 255, .19); color: var(--a); box-shadow: var(--edge); }
-:where([data-theme="glass"]) .fab { background: color-mix(in srgb, var(--a) var(--fabmix, 60%), rgba(255, 255, 255, .06)); color: #fff; -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); box-shadow: var(--edge-hi), 0 10px 30px color-mix(in srgb, var(--a) 26%, transparent), 0 8px 24px rgba(0, 0, 0, .3); }
-:where([data-theme="glass"]) .fab[data-on="home"] { --fabmix: 30%; }
-:where([data-theme="glass"]) .fab[aria-expanded="true"] { background: rgba(255, 255, 255, .16); box-shadow: var(--edge-hi), 0 8px 30px rgba(0, 0, 0, .4); }
-:where([data-theme="glass"]) .scrim { background: rgba(4, 4, 10, .32); -webkit-backdrop-filter: blur(22px) saturate(1.3); backdrop-filter: blur(22px) saturate(1.3); }
-:where([data-theme="glass"]) .fm-item { background: rgba(255, 255, 255, .13); box-shadow: var(--edge-hi), 0 12px 34px rgba(0, 0, 0, .3); }
-:where([data-theme="glass"]) .nbar { background: rgba(255, 255, 255, .12); box-shadow: var(--edge-hi), 0 18px 44px rgba(0, 0, 0, .4); }
+:where([data-theme="glass"]) .note, :where([data-theme="glass"]) .todo, :where([data-theme="glass"]) .group, :where([data-theme="glass"]) .invrow, :where([data-theme="glass"]) .prog, :where([data-theme="glass"]) .pinnote, :where([data-theme="glass"]) .sumbox, :where([data-theme="glass"]) .pill, :where([data-theme="glass"]) .hctile, :where([data-theme="glass"]) .themetile, :where([data-theme="glass"]) .nbody, :where([data-theme="glass"]) .field input, :where([data-theme="glass"]) .field select, :where([data-theme="glass"]) .field textarea { box-shadow: var(--edge); -webkit-backdrop-filter: var(--lg, none); backdrop-filter: var(--lg, none); }
+:where([data-theme="glass"]) .search, :where([data-theme="glass"]) .addrow, :where([data-theme="glass"]) .seg, :where([data-theme="glass"]) .dchip, :where([data-theme="glass"]) .more, :where([data-theme="glass"]) .btn, :where([data-theme="glass"]) .iconbtn { background: var(--s2); box-shadow: var(--edge); -webkit-backdrop-filter: var(--lg, var(--frost)); backdrop-filter: var(--lg, var(--frost)); }
+:where([data-theme="glass"]) .search, :where([data-theme="glass"]) .addrow, :where([data-theme="glass"]) .seg, :where([data-theme="glass"]) .dchip, :where([data-theme="glass"]) .more { background: rgba(10, 10, 18, .28); }
+:where([data-theme="glass"]) .hsec, :where([data-theme="glass"]) .sec, :where([data-theme="glass"]) .sub, :where([data-theme="glass"]) .hint, :where([data-theme="glass"]) .foot, :where([data-theme="glass"]) .saved, :where([data-theme="glass"]) .field > span, :where([data-theme="glass"]) .invsum, :where([data-theme="glass"]) .hdate, :where([data-theme="glass"]) .hweek, :where([data-theme="glass"]) .link, :where([data-theme="glass"]) .kicker { color: rgba(255, 255, 255, .92); }
+:where([data-theme="glass"]) .iconbtn.sm { background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+:where([data-theme="glass"]) .iconbtn[aria-pressed="true"] { background: var(--a); }
+:where([data-theme="glass"]) .btn.primary, :where([data-theme="glass"]) .nb-done { background: rgba(255, 255, 255, .92); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:where([data-theme="glass"]) .btn.danger { background: var(--red); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:where([data-theme="glass"]) .btn.bio { background: color-mix(in srgb, var(--green) 20%, transparent); }
+:where([data-theme="glass"]) .field input, :where([data-theme="glass"]) .field select, :where([data-theme="glass"]) .field textarea { border-color: rgba(255, 255, 255, .07); }
+:where([data-theme="glass"]) .nbody { background: var(--s1); border-radius: 26px; padding: 16px 18px; margin-top: 10px; }
+:where([data-theme="glass"]) .added li, :where([data-theme="glass"]) .pill.act { box-shadow: var(--rim); }
+:where([data-theme="glass"]) .sheet { background: #05050a; opacity: 1; transform: translateY(102%); transition: transform .5s cubic-bezier(.2, .85, .25, 1); }
+:where([data-theme="glass"]) .sheet.in { transform: none; }
+:where([data-theme="glass"]) .sheet.under { visibility: hidden; transition: transform .5s cubic-bezier(.2, .85, .25, 1), visibility 0s .5s; }
+:where([data-theme="glass"]) .sheet > .wall { display: block; max-width: none; margin: 0; }
+:where([data-theme="glass"]) .sheet.quick { background: rgba(4, 4, 10, .3); transform: none; -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4); transition: opacity .2s; }
+:where([data-theme="glass"]) .sheet.quick > .q-card { background: rgba(40, 40, 56, .5); box-shadow: var(--rim), 0 -20px 60px rgba(0, 0, 0, .35); }
+:where([data-theme="glass"]) #app { transition: visibility 0s; }
+:where([data-theme="glass"]) nav.tabs { gap: 2px; padding: 5px; background: rgba(10, 10, 18, .2); box-shadow: var(--edge), 0 16px 40px rgba(0, 0, 0, .4); -webkit-backdrop-filter: var(--lg, var(--frost)); backdrop-filter: var(--lg, var(--frost)); }
+:where([data-theme="glass"]) nav.tabs button { flex-direction: column; gap: 3px; width: min(74px, calc((100vw - 40px) / 4)); height: 54px; min-width: 0; padding: 0; font-size: .68rem; color: rgba(255, 255, 255, .72); }
+:where([data-theme="glass"]) nav.tabs button span, :where([data-theme="glass"]) nav.tabs button[aria-current="page"] span { max-width: none; margin: 0; opacity: 1; transform: none; color: inherit; transition: none; }
+:where([data-theme="glass"]) nav.tabs button[aria-current="page"] { background: rgba(255, 255, 255, .17); color: var(--a); box-shadow: var(--rim); }
+:where([data-theme="glass"]) nav.tabs button .ic { width: 21px; height: 21px; }
+:where([data-theme="glass"]) .fab { background: color-mix(in srgb, var(--a) var(--fabmix, 44%), rgba(255, 255, 255, .04)); color: #fff; box-shadow: var(--edge), 0 12px 30px color-mix(in srgb, var(--a) 22%, transparent), 0 10px 26px rgba(0, 0, 0, .35); -webkit-backdrop-filter: var(--lg, var(--frost)); backdrop-filter: var(--lg, var(--frost)); }
+:where([data-theme="glass"]) .fab[data-on="home"] { --fabmix: 12%; }
+:where([data-theme="glass"]) .fab[aria-expanded="true"] { background: rgba(255, 255, 255, .12); box-shadow: var(--edge), 0 8px 30px rgba(0, 0, 0, .4); }
+:where([data-theme="glass"]) .scrim { background: rgba(4, 4, 10, .34); -webkit-backdrop-filter: blur(22px) saturate(1.3); backdrop-filter: blur(22px) saturate(1.3); }
+:where([data-theme="glass"]) .fm-item { background: rgba(255, 255, 255, .1); box-shadow: var(--edge), 0 12px 34px rgba(0, 0, 0, .3); -webkit-backdrop-filter: var(--lg, none); backdrop-filter: var(--lg, none); }
+:where([data-theme="glass"]) #toast, :where([data-theme="glass"]) .island, :where([data-theme="glass"]) .live, :where([data-theme="glass"]) .nbar, :where([data-theme="glass"]) .ulock { background: rgba(14, 14, 22, .4); box-shadow: var(--edge), 0 16px 40px rgba(0, 0, 0, .45); -webkit-backdrop-filter: var(--lg, var(--frost)); backdrop-filter: var(--lg, var(--frost)); }
 :where([data-theme="glass"]) .nb-btn:active:not(:disabled) { background: rgba(255, 255, 255, .16); }
-:where([data-theme="glass"]) .dlg { background: rgba(40, 40, 56, .52); -webkit-backdrop-filter: blur(34px) saturate(1.6); backdrop-filter: blur(34px) saturate(1.6); box-shadow: var(--edge-hi), 0 30px 80px rgba(0, 0, 0, .5); }
-:where([data-theme="glass"]) .dlg::backdrop { background: rgba(4, 4, 10, .38); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-:where([data-theme="glass"]) #toast, :where([data-theme="glass"]) .island, :where([data-theme="glass"]) .live { background: rgba(22, 22, 32, .5); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); box-shadow: var(--edge-hi), 0 16px 40px rgba(0, 0, 0, .4); }
+:where([data-theme="glass"]) .dlg { background: rgba(30, 30, 44, .46); box-shadow: var(--edge), 0 30px 80px rgba(0, 0, 0, .5); -webkit-backdrop-filter: var(--lg, blur(34px) saturate(1.6)); backdrop-filter: var(--lg, blur(34px) saturate(1.6)); }
+:where([data-theme="glass"]) .dlg::backdrop { background: rgba(4, 4, 10, .4); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 :where([data-theme="glass"]) .lv-x button { background: rgba(255, 255, 255, .16); }
-:where([data-theme="glass"]) .hcprev { background: rgba(16, 16, 26, .5); -webkit-backdrop-filter: blur(30px) saturate(1.5); backdrop-filter: blur(30px) saturate(1.5); box-shadow: var(--edge), 0 14px 30px rgba(0, 0, 0, .35); }
-:where([data-theme="glass"]) .ulock { background: rgba(22, 22, 32, .55); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); }
-:where([data-theme="glass"]) .seg button[aria-checked="true"] { background: rgba(255, 255, 255, .24); color: #fff; box-shadow: var(--edge-hi); }
-:where([data-theme="glass"]) .switch { background: rgba(255, 255, 255, .2); }
-:where([data-theme="glass"]) .chk svg { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .5); }
-:where([data-theme="glass"]) .empty .ic { color: rgba(255, 255, 255, .36); }
-:where([data-theme="glass"]) .ntitle::placeholder, :where([data-theme="glass"]) .nbody::placeholder { color: rgba(255, 255, 255, .42); }
+:where([data-theme="glass"]) .hcprev { background: rgba(10, 10, 18, .42); box-shadow: var(--edge), 0 14px 30px rgba(0, 0, 0, .35); -webkit-backdrop-filter: var(--lg, blur(30px) saturate(1.5)); backdrop-filter: var(--lg, blur(30px) saturate(1.5)); }
+:where([data-theme="glass"]) .seg button[aria-checked="true"] { background: rgba(255, 255, 255, .22); color: #fff; box-shadow: var(--rim); }
+:where([data-theme="glass"]) .switch { background: rgba(255, 255, 255, .22); }
+:where([data-theme="glass"]) .chk svg { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .55); }
+:where([data-theme="glass"]) .empty .ic { color: rgba(255, 255, 255, .4); }
+:where([data-theme="glass"]) .ntitle::placeholder, :where([data-theme="glass"]) .nbody::placeholder { color: rgba(255, 255, 255, .45); }
 :where([data-theme="glass"]) .swatches button[aria-checked="true"] { box-shadow: none; outline: 2.5px solid #fff; outline-offset: 3px; }
-:where([data-theme="glass"]) .row.nav::after { border-color: rgba(255, 255, 255, .45); }
-:where([data-theme="glass"]) .tdue { background: rgba(255, 255, 255, .1); }
-:where([data-theme="glass"]) .pring .bg { stroke: rgba(255, 255, 255, .16); }
+:where([data-theme="glass"]) .row.nav::after { border-color: rgba(255, 255, 255, .5); }
+:where([data-theme="glass"]) .tdue { background: rgba(0, 0, 0, .34); }
+:where([data-theme="glass"]) .tdue.today { background: color-mix(in srgb, var(--orange) 20%, rgba(0, 0, 0, .34)); }
+:where([data-theme="glass"]) .tdue.late { background: color-mix(in srgb, var(--red) 20%, rgba(0, 0, 0, .34)); }
+:where([data-theme="glass"]) .pring .bg { stroke: rgba(255, 255, 255, .18); }
+:where([data-theme="glass"]) header.top h1, :where([data-theme="glass"]) .hsec, :where([data-theme="glass"]) .sec, :where([data-theme="glass"]) .sub, :where([data-theme="glass"]) .hint, :where([data-theme="glass"]) .foot, :where([data-theme="glass"]) .saved, :where([data-theme="glass"]) .hdate, :where([data-theme="glass"]) .hweek, :where([data-theme="glass"]) .tc-white, :where([data-theme="glass"]) .center, :where([data-theme="glass"]) .invsum, :where([data-theme="glass"]) .invhero, :where([data-theme="glass"]) .empty, :where([data-theme="glass"]) .field > span, :where([data-theme="glass"]) .lock h1, :where([data-theme="glass"]) .link, :where([data-theme="glass"]) .ntitle, :where([data-theme="glass"]) .textbtn { text-shadow: 0 1px 10px rgba(0, 0, 0, .5), 0 0 2px rgba(0, 0, 0, .35); }
+:where([data-theme="glass"]) .enter > *, :where([data-theme="glass"]) .lock > form { animation-name: riseY; }
+:where([data-theme="glass"]) .enter > .hello, :where([data-theme="glass"]) .enter > .hdate, :where([data-theme="glass"]) .enter > .htime, :where([data-theme="glass"]) .enter > .hweek { animation-name: rise; }
+:where([data-theme="glass"]) .enter .todo, :where([data-theme="glass"]) .enter .invrow { animation: rise .7s var(--ease) .42s backwards; }
 @media (hover: hover) and (pointer: fine) {
   :where([data-theme="glass"]) .note:hover, :where([data-theme="glass"]) .todo:hover, :where([data-theme="glass"]) .invrow:hover, :where([data-theme="glass"]) .pill:hover, :where([data-theme="glass"]) .pinnote:hover { background: rgba(255, 255, 255, .12); }
 }
 /* Weniger Transparenz / mehr Kontrast gewünscht: Glas wird zu ruhigen, festen Flächen */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  :root[data-theme="glass"] { --s1: #17171e; --s2: #22222b; --s3: #2e2e39; --line: #34343f; --mix: #000; --t2: #b4b4be; --t3: #9a9aa4; --t4: #8e8e98; --blur: none; }
-  [data-theme="glass"] .wall i { opacity: .2; }
+  :root[data-theme="glass"] { --s1: #17171e; --s2: #22222b; --s3: #2e2e39; --line: #34343f; --mix: #000; --t2: #b4b4be; --t3: #9a9aa4; --t4: #8e8e98; --frost: none; }
+  [data-theme="glass"] .wall { opacity: .35; }
   :where([data-theme="glass"]) nav.tabs, :where([data-theme="glass"]) #toast, :where([data-theme="glass"]) .island, :where([data-theme="glass"]) .live, :where([data-theme="glass"]) .dlg, :where([data-theme="glass"]) .hcprev, :where([data-theme="glass"]) .ulock, :where([data-theme="glass"]) .nbar, :where([data-theme="glass"]) .fm-item, :where([data-theme="glass"]) .sheet.quick > .q-card { background: #16161d; -webkit-backdrop-filter: none; backdrop-filter: none; }
   :where([data-theme="glass"]) .fab { background: color-mix(in srgb, var(--a) 46%, #111118); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
