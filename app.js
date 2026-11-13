@@ -100,6 +100,32 @@ function confetti(x, y) {
   setTimeout(() => box.remove(), 1800);
 }
 
+/* ---------- Design: Klassisch (schwarz) oder Glas ---------- */
+const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+const WALLS = [['aurora', 'Aurora'], ['ocean', 'Ozean'], ['sunset', 'Abendrot'], ['forest', 'Wald'], ['graphite', 'Graphit']];
+const getTheme = () => document.documentElement.dataset.theme === 'glass' ? 'glass' : 'classic';
+const getWall = () => document.documentElement.dataset.wall || 'aurora';
+function applyTheme(theme, wall) {
+  const r = document.documentElement;
+  if (theme === 'glass') r.dataset.theme = 'glass'; else delete r.dataset.theme;
+  r.dataset.wall = WALLS.some(w => w[0] === wall) ? wall : 'aurora';
+  $('meta[name="theme-color"]')?.setAttribute('content', theme === 'glass' ? '#06060b' : '#000000');
+}
+applyTheme(getTheme(), getWall()); // beim Start: Farbe der Statusleiste an das gewählte Design angleichen
+// Wechselt das Design; das neue Aussehen wächst als Kreis aus dem angetippten Knopf
+function setTheme(theme, wall, origin, after) {
+  lsSet('lumen-theme', theme); lsSet('lumen-wall', wall);
+  if (data) { data.settings.theme = theme; data.settings.wall = wall; save(); }
+  const go = () => { applyTheme(theme, wall); after?.(); };
+  if (!document.startViewTransition || reduced()) return go();
+  const r = origin?.getBoundingClientRect(), x = r ? r.left + r.width / 2 : innerWidth / 2, y = r ? r.top + r.height / 2 : innerHeight / 2;
+  const rad = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  const vt = document.startViewTransition(go);
+  vt.ready.then(() => document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${rad}px at ${x}px ${y}px)`] },
+    { duration: 750, easing: 'cubic-bezier(.3, .7, .2, 1)', pseudoElement: '::view-transition-new(root)' })).catch(() => {});
+}
+
 /* ---------- Dialoge ---------- */
 function dialog({ title, body = '', fields = [], ok = 'OK', cancel = 'Abbrechen', danger = false }) {
   return new Promise(res => {
@@ -328,6 +354,8 @@ function renderMain() {
       <button class="fm-item" role="menuitem" data-add="note" style="--i:0;--a:var(--yellow)"><span>Notiz</span><span class="fm-ic">${ic('note')}</span></button>
     </div>
     <button class="fab" id="fab" aria-label="Hinzufügen">${ic('plus')}</button>`;
+  // Design aus den (verschlüsselten) Einstellungen übernehmen, z. B. nach einem Backup-Import auf einem neuen Gerät
+  if (!lsGet('lumen-theme') && data.settings.theme) { applyTheme(data.settings.theme, data.settings.wall); lsSet('lumen-theme', getTheme()); lsSet('lumen-wall', getWall()); }
   enter = true;
   renderTab();
   setTimeout(() => checkTodoIsland(true), 1500);
@@ -351,6 +379,7 @@ function renderTab() {
   const fab = $('#fab');
   const fabCfg = { home: ['white', 'Hinzufügen'], notes: ['yellow', 'Neue Notiz'], todos: ['orange', 'Neue Aufgabe'], cards: ['violet', 'Neue Karte'] }[tab];
   fab.hidden = !fabCfg;
+  fab.dataset.on = tab;
   if (fabCfg) { fab.style.setProperty('--a', `var(--${fabCfg[0]})`); fab.setAttribute('aria-label', fabCfg[1]); }
   if (tab === 'home' || tab === 'cards') { fab.setAttribute('aria-haspopup', 'menu'); fab.setAttribute('aria-expanded', 'false'); }
   else { fab.removeAttribute('aria-haspopup'); fab.removeAttribute('aria-expanded'); }
@@ -1121,6 +1150,16 @@ function openCardForm(id, type) {
 function openSettings(origin) {
   const el = openSheet(`
     <div class="sheet-top"><button class="iconbtn" data-close aria-label="Zurück">${ic('back')}</button><h2 class="grow center">Einstellungen</h2><span class="iconbtn ghost"></span></div>
+    <h3 class="sec">Design</h3>
+    <div class="themes" role="radiogroup" aria-label="Design">
+      <button type="button" class="themetile" role="radio" data-pick="classic"><span class="tprev" aria-hidden="true"><i></i><i></i><i></i><b></b></span>Klassisch</button>
+      <button type="button" class="themetile" role="radio" data-pick="glass"><span class="tprev glass" aria-hidden="true"><i></i><i></i><i></i><b></b></span>Glas</button>
+    </div>
+    <div class="group collapsible${getTheme() === 'glass' ? '' : ' collapsed'}" id="wallGroup"${getTheme() === 'glass' ? '' : ' inert'}>
+      <div class="wallrow"><b>Hintergrund</b>
+        <div class="swatches big" role="radiogroup" aria-label="Hintergrund">${WALLS.map(([k, n]) => `<button type="button" role="radio" data-wall="${k}" aria-label="${n}"></button>`).join('')}</div></div>
+    </div>
+    <h3 class="sec">Sicherheit</h3>
     <div class="group">
       <div class="row"><div><b>Code-Sperre</b><small id="codeTxt">${Vault.hasCode ? 'App ist mit Code geschützt' : 'Aus – die App öffnet sich von selbst'}</small></div>
         <button class="switch" id="codeSw" role="switch" aria-checked="${Vault.hasCode}" aria-label="Code-Sperre"></button></div>
@@ -1132,12 +1171,23 @@ function openSettings(origin) {
         <select id="al">${[[0, 'Sofort'], [60, 'Nach 1 Min.'], [300, 'Nach 5 Min.'], [900, 'Nach 15 Min.']].map(([v, l]) => `<option value="${v}" ${data.settings.autolock === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <button class="row nav" id="chg"><div><b>Code ändern</b></div></button>
     </div>
+    <h3 class="sec">Daten</h3>
     <div class="group">
       <button class="row nav" id="exp"><div><b>Backup exportieren</b><small>Mit Code-Sperre öffnet sich die Datei nur mit deinem Code</small></div></button>
       <label class="row nav"><div><b>Backup importieren</b><small>Ersetzt alle Daten auf diesem Handy</small></div><input type="file" id="imp" accept=".json,application/json" hidden></label>
     </div>
     <div class="group"><button class="row danger" id="wipe"><div><b>Alle Daten löschen</b></div></button></div>
     <p class="foot">Lumen 1.0 · Alles bleibt auf diesem Gerät, verschlüsselt mit AES-256.</p>`, { label: 'Einstellungen', origin });
+
+  const markTheme = () => {
+    const th = getTheme(), g = $('#wallGroup', el);
+    el.querySelectorAll('[data-pick]').forEach(b => b.setAttribute('aria-checked', b.dataset.pick === th));
+    el.querySelectorAll('.wallrow [data-wall]').forEach(b => b.setAttribute('aria-checked', b.dataset.wall === getWall()));
+    g.classList.toggle('collapsed', th !== 'glass'); g.toggleAttribute('inert', th !== 'glass');
+  };
+  markTheme();
+  el.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { if (b.dataset.pick === getTheme()) return; buzz(10); setTheme(b.dataset.pick, getWall(), b, markTheme); }));
+  el.querySelectorAll('.wallrow [data-wall]').forEach(b => b.addEventListener('click', () => { if (b.dataset.wall === getWall()) return; buzz(6); setTheme('glass', b.dataset.wall, b, markTheme); }));
 
   $('#codeSw', el).addEventListener('click', async e => {
     const sw = e.currentTarget;

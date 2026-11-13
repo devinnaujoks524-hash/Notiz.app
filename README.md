@@ -8,6 +8,7 @@ Private Notizen, To-dos und 3D-Karten – komplett schwarz, knallige Farben, ver
 - **To-dos** zum Abhaken
 - **Rechnungen** mit Foto, Steuer (DE, AT, CH, USA u. a. oder eigene), Netto/Brutto-Rechnung und Status
 - **Visualisierung:** Bank-, Kundenkarten und E-Mail-Konten (als Umschlag) schweben als 3D-Modell (ziehen = drehen, tippen = umdrehen)
+- **Zwei Designs:** Klassisch (schwarz) oder Glas mit farbigem Hintergrund – umschaltbar in den Einstellungen
 - **Sperre** mit Code, optional Fingerabdruck
 - **Offline** – funktioniert ohne Internet
 - **Backup** als verschlüsselte Datei (Export/Import)
