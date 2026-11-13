@@ -271,7 +271,7 @@ document.addEventListener('visibilitychange', async () => {
 /* ---------- Hauptansicht ---------- */
 const TABS = [
   { id: 'home', label: 'Home', icon: 'home', color: 'white' },
-  { id: 'notes', label: 'Notes', icon: 'note', color: 'yellow' },
+  { id: 'notes', label: 'Notizen', icon: 'note', color: 'yellow' },
   { id: 'todos', label: 'To-dos', icon: 'check', color: 'orange' },
   { id: 'cards', label: 'Visual', icon: 'card', color: 'violet' },
 ];
@@ -766,12 +766,11 @@ function viewTodos() {
       <button class="addbtn" aria-label="Hinzufügen">${ic('plus')}</button>
     </form>
     <div class="dchips" id="dchips"></div>
-    <div class="pills small">
-      <span class="pill tiny"><b class="c-orange">${open.length}</b> offen</span>
-      <span class="pill tiny"><b class="c-green">${done.length}</b> erledigt</span>
-      ${done.length ? `<button class="pill tiny" data-act="cleardone">Erledigte löschen</button>` : ''}
-    </div>
-    ${data.todos.length ? `<ul class="todos">${[...open, ...done].map(todoItem).join('')}</ul>` : emptyState('check', 'Alles erledigt', 'Schreib oben deine erste Aufgabe rein.')}`;
+    ${open.length ? `<div class="hsec"><span>Offen</span><b>${open.length}</b></div>
+    <ul class="todos">${open.map(t => todoItem(t)).join('')}</ul>` : ''}
+    ${done.length ? `<div class="hsec"><span>Erledigt</span><b class="g">${done.length}</b><button class="textbtn" data-act="cleardone">Löschen</button></div>
+    <ul class="todos">${done.map(t => todoItem(t)).join('')}</ul>` : ''}
+    ${data.todos.length ? '' : emptyState('check', 'Alles erledigt', 'Schreib oben deine erste Aufgabe rein.')}`;
 }
 function bindTodoForm() {
   const draft = { due: '', time: '' }, box = $('#dchips');
@@ -982,11 +981,11 @@ function openSettings(origin) {
         <button class="switch" id="bioSw" role="switch" aria-checked="${Vault.hasBio}" aria-label="Fingerabdruck" ${bioOk ? '' : 'disabled'}></button></div>
       <label class="row"><div><b>Automatisch sperren</b><small>Wenn die App im Hintergrund ist</small></div>
         <select id="al">${[[0, 'Sofort'], [60, 'Nach 1 Min.'], [300, 'Nach 5 Min.'], [900, 'Nach 15 Min.']].map(([v, l]) => `<option value="${v}" ${data.settings.autolock === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      <button class="row" id="chg"><div><b>Code ändern</b></div></button>
+      <button class="row nav" id="chg"><div><b>Code ändern</b></div></button>
     </div>
     <div class="group">
-      <button class="row" id="exp"><div><b>Backup exportieren</b><small>Mit Code-Sperre öffnet sich die Datei nur mit deinem Code</small></div></button>
-      <label class="row"><div><b>Backup importieren</b><small>Ersetzt alle Daten auf diesem Handy</small></div><input type="file" id="imp" accept=".json,application/json" hidden></label>
+      <button class="row nav" id="exp"><div><b>Backup exportieren</b><small>Mit Code-Sperre öffnet sich die Datei nur mit deinem Code</small></div></button>
+      <label class="row nav"><div><b>Backup importieren</b><small>Ersetzt alle Daten auf diesem Handy</small></div><input type="file" id="imp" accept=".json,application/json" hidden></label>
     </div>
     <div class="group"><button class="row danger" id="wipe"><div><b>Alle Daten löschen</b></div></button></div>
     <p class="foot">Lumen 1.0 · Alles bleibt auf diesem Gerät, verschlüsselt mit AES-256.</p>`, { label: 'Einstellungen', origin });
