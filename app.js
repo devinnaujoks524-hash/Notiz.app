@@ -25,6 +25,8 @@ const P = {
   pin: '<path d="M12 16v6M8 3h8l-1 6 3 4H6l3-4z"/>',
   back: '<path d="M15 5l-7 7 7 7"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+  pause: '<path d="M8.5 5v14M15.5 5v14"/>',
+  play: '<path d="M8 5l11 7-11 7z"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/>',
@@ -57,12 +59,28 @@ async function flush() {
 }
 
 let toastT;
+// Hinweis als kleine Insel: Symbol links, Text, rechts ggf. „An/Aus“ oder „Rückgängig“
+const TOAST_KIND = [
+  [/falsch|fehlgeschlagen|nicht|keine gültige|Abgebrochen/i, 'x', 'red'],
+  [/gelöscht|verworfen/, 'trash', 'red'],
+  [/angeheftet|gelöst/, 'pin', 'yellow'],
+  [/Kopiert/, 'copy', 'blue'],
+  [/Timer/, 'clock', 'pink'],
+  [/Fingerabdruck/, 'finger', 'green'],
+  [/Code/, 'lock', 'green'],
+];
+const yieldLive = () => document.body.classList.toggle('isl-busy', !!($('#toast.show') || $('.island')));
 function toast(msg, { undo } = {}) {
   const t = $('#toast');
-  t.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button">Rückgängig</button>' : ''}`;
-  t.classList.toggle('act', !!undo); t.classList.add('show');
-  if (undo) t.querySelector('button').onclick = () => { t.classList.remove('show'); buzz(8); undo(); };
-  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), undo ? 5200 : 2600);
+  const [, icon, color] = TOAST_KIND.find(k => k[0].test(msg)) || [0, 'check', 'green'];
+  const sw = msg.match(/^(.*) (an|aus)$/);
+  t.innerHTML = `<span class="t-ic" style="--a:var(--${color})">${ic(icon)}</span><span class="t-tx">${esc(sw ? sw[1] : msg)}</span>${
+    sw ? `<span class="t-val ${sw[2]}">${sw[2] === 'an' ? 'An' : 'Aus'}</span>` : ''}${undo ? '<button type="button">Rückgängig</button>' : ''}`;
+  t.classList.toggle('act', !!undo); t.classList.add('show'); yieldLive();
+  if (color === 'red' && icon === 'x') buzz([18, 50, 18]);
+  const hide = () => { t.classList.remove('show'); yieldLive(); };
+  if (undo) t.querySelector('button').onclick = () => { hide(); buzz(8); undo(); };
+  clearTimeout(toastT); toastT = setTimeout(hide, undo ? 5200 : 2600);
 }
 
 // Konfetti: kleine bunte Teilchen fliegen von einem Punkt aus auseinander
@@ -320,7 +338,7 @@ function menuHtml(t) {
   const item = (add, label, icon, i, color) => `<button class="fm-item" role="menuitem" data-add="${add}" style="--i:${i};--a:var(--${color})"><span>${label}</span><span class="fm-ic">${ic(icon)}</span></button>`;
   return t === 'cards'
     ? item('card:mail', 'E-Mail', 'mail', 2, 'blue') + item('card:member', 'Kundenkarte', 'bag', 1, 'green') + item('card:bank', 'Bankkarte', 'card', 0, 'violet')
-    : item('invoice', 'Rechnung', 'receipt', 3, 'green') + item('card', 'Visualisierung', 'card', 2, 'violet') + item('todo', 'To-do', 'check', 1, 'orange') + item('note', 'Notiz', 'note', 0, 'yellow');
+    : item('timer', 'Fokus-Timer', 'clock', 4, 'pink') + item('invoice', 'Rechnung', 'receipt', 3, 'green') + item('card', 'Visualisierung', 'card', 2, 'violet') + item('todo', 'To-do', 'check', 1, 'orange') + item('note', 'Notiz', 'note', 0, 'yellow');
 }
 function renderTab() {
   const screen = $('#screen'); if (!screen || !data) return;
@@ -942,14 +960,15 @@ function nextIsland() {
   islandBusy = true;
   const el = document.createElement('div');
   el.className = 'island'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+  if (o.color) el.style.setProperty('--a', `var(--${o.color})`);
   el.innerHTML = `<span class="isl-ic">${ic(o.icon || 'check')}</span><span class="isl-tx"><small>${esc(o.title)}</small><b>${esc(o.text)}</b></span>`;
-  document.body.append(el); void el.offsetWidth; el.classList.add('in'); buzz([14, 40, 10]);
+  document.body.append(el); void el.offsetWidth; el.classList.add('in'); buzz([14, 40, 10]); yieldLive();
   let closed = false, y0 = null;
   const timer = setTimeout(() => close(), o.ms || 4300);
   const close = go => {
     if (closed) return; closed = true; clearTimeout(timer);
     el.classList.remove('in'); el.classList.add('out');
-    setTimeout(() => { el.remove(); nextIsland(); }, 520);
+    setTimeout(() => { el.remove(); yieldLive(); nextIsland(); }, 520);
     if (go) o.onTap?.();
   };
   el.addEventListener('click', () => close(true));
@@ -968,6 +987,12 @@ function checkTodoIsland(summary) {
       island({ title: n === 1 ? (late ? 'Überfällig' : first.time ? 'Heute · ' + first.time : 'Heute') : `${n} To-dos ${late === n ? 'überfällig' : 'für heute'}`,
         text: n === 1 ? first.text : `${first.text} und ${n - 1} weitere`, onTap: goTodos });
       due.forEach(t => islandNotified.add(t.id));
+    }
+    const inv = (data.invoices || []).filter(i => i.status === 'open' && i.mode !== 'simple' && i.due && dayDiff(i.due) <= 0).sort(invSort);
+    if (inv.length) {
+      const n = inv.length, late = inv.filter(i => dayDiff(i.due) < 0).length, first = inv[0];
+      island({ icon: 'receipt', color: 'red', title: n === 1 ? (late ? 'Rechnung überfällig' : 'Rechnung heute fällig') : `${n} Rechnungen ${late === n ? 'überfällig' : 'fällig'}`,
+        text: n === 1 ? `${first.vendor} · ${money(first.gross, first.currency)}` : `${first.vendor} und ${n - 1} weitere`, onTap: () => { if (data) openInvoiceList(); } });
     }
     return;
   }
@@ -1446,6 +1471,106 @@ function openInvoiceList(filter = 'open') {
   render();
 }
 
+/* ---------- Fokus-Timer: läuft als kleine Live-Insel oben mit ---------- */
+const getTimer = () => data?.settings?.timer || null;
+const timerLeft = t => t.end ? Math.max(0, Math.ceil((t.end - Date.now()) / 1000)) : t.left;
+const fmtClock = s => `${Math.floor(s / 60)}:${pad2(s % 60)}`;
+let liveEl = null, liveT = null;
+function chime() {
+  try {
+    const A = window.AudioContext || window.webkitAudioContext; if (!A) return;
+    const ctx = new A(), t0 = ctx.currentTime;
+    [[660, 0], [880, .16], [1320, .32]].forEach(([f, at]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(.0001, t0 + at); g.gain.exponentialRampToValueAtTime(.16, t0 + at + .03); g.gain.exponentialRampToValueAtTime(.0001, t0 + at + .5);
+      o.start(t0 + at); o.stop(t0 + at + .55);
+    });
+    setTimeout(() => ctx.close(), 1400);
+  } catch {}
+}
+function openLive(open) {
+  if (!liveEl) return;
+  liveEl.classList.toggle('open', open); liveEl.setAttribute('aria-expanded', open);
+  liveEl.querySelectorAll('.lv-x button').forEach(b => { b.tabIndex = open ? 0 : -1; });
+  clearTimeout(liveT);
+  if (open && !getTimer()?.done) liveT = setTimeout(() => openLive(false), 6000);
+}
+function paintLive() {
+  const t = getTimer(), el = liveEl; if (!t || !el) return;
+  const left = timerLeft(t), txt = t.done ? 'Fertig' : fmtClock(left);
+  el.style.setProperty('--p', t.total ? ((1 - left / t.total) * 100).toFixed(2) : 100);
+  el.querySelectorAll('.lv-time').forEach(n => { if (n.textContent !== txt) n.textContent = txt; });
+  el.classList.toggle('paused', !t.end && !t.done); el.classList.toggle('done', !!t.done);
+  const pb = $('#lvPause', el);
+  pb.innerHTML = ic(t.done ? 'check' : t.end ? 'pause' : 'play'); pb.setAttribute('aria-label', t.done ? 'Fertig' : t.end ? 'Pause' : 'Weiter');
+  $('.lv-label', el).textContent = t.done ? 'Zeit ist um' : t.end ? (t.label || 'Fokus') : 'Pausiert';
+  el.setAttribute('aria-label', `Fokus-Timer, ${t.done ? 'fertig' : 'noch ' + fmtClock(left)}`);
+}
+function syncLive() {
+  const t = getTimer();
+  if (!t) {
+    if (liveEl) { const el = liveEl; liveEl = null; clearTimeout(liveT); document.body.classList.remove('has-live'); el.classList.add('bye'); setTimeout(() => el.remove(), reduced() ? 0 : 380); }
+    return;
+  }
+  if (!liveEl) {
+    const el = liveEl = document.createElement('div');
+    el.className = 'live'; el.setAttribute('role', 'button'); el.tabIndex = 0; el.setAttribute('aria-expanded', 'false');
+    el.innerHTML = `<div class="lv-c" aria-hidden="true"><svg class="lv-ring" viewBox="0 0 20 20"><circle class="bg" cx="10" cy="10" r="7.5"/><circle class="fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg><span class="lv-time"></span></div>
+      <div class="lv-x"><button type="button" id="lvPause" tabindex="-1"></button><button type="button" id="lvStop" tabindex="-1" aria-label="Timer beenden">${ic('x')}</button>
+        <span class="lv-info"><small class="lv-label"></small><b class="lv-time"></b></span></div>`;
+    document.body.append(el); document.body.classList.add('has-live');
+    requestAnimationFrame(() => el.classList.add('in'));
+    el.addEventListener('click', e => {
+      const b = e.target.closest('button'), t = getTimer(); if (!t) return;
+      if (!b) return openLive(!el.classList.contains('open'));
+      buzz(8);
+      if (b.id === 'lvStop' || t.done) { const was = t.done; delete data.settings.timer; save(); syncLive(); if (!was) toast('Timer beendet'); return; }
+      if (t.end) { t.left = timerLeft(t); t.end = null; } else t.end = Date.now() + t.left * 1000;
+      save(); paintLive(); openLive(true);
+    });
+    el.addEventListener('keydown', e => { if (e.target === el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openLive(!el.classList.contains('open')); } });
+  }
+  if (t.end && timerLeft(t) === 0) { // abgelaufen
+    t.end = null; t.left = 0; t.done = true; save(); paintLive(); openLive(true);
+    buzz([60, 80, 60, 80, 120]); chime();
+    const r = liveEl.getBoundingClientRect(); setTimeout(() => confetti(r.left + r.width / 2, r.top + r.height / 2), 250);
+    return;
+  }
+  paintLive();
+}
+setInterval(syncLive, 500);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncLive(); });
+document.addEventListener('pointerdown', e => { if (liveEl?.classList.contains('open') && !liveEl.contains(e.target) && !getTimer()?.done) openLive(false); });
+function startTimer(min, label) {
+  data.settings.timer = { total: min * 60, end: Date.now() + min * 60000, left: min * 60, label: label.trim().slice(0, 40) };
+  save(); syncLive();
+}
+function openTimerSheet() {
+  if (getTimer()) { syncLive(); return openLive(true); }
+  let min = data.settings.timerMin || 25;
+  const el = openSheet(`
+    <div class="q-bd" data-close></div>
+    <form class="q-card" id="tf" autocomplete="off">
+      <div class="q-top"><h2>Fokus-Timer</h2><button type="button" class="iconbtn sm" data-close aria-label="Schließen">${ic('x')}</button></div>
+      <div class="tbig" id="tbig" aria-live="polite"></div>
+      <div class="dchips tmins" role="radiogroup" aria-label="Dauer">${[5, 15, 25, 45, 60].map(m => `<button type="button" class="dchip" role="radio" data-min="${m}">${m} Min.</button>`).join('')}</div>
+      <label class="field"><span>Woran arbeitest du? (optional)</span><input id="tl" maxlength="40" placeholder="z. B. Steuererklärung" enterkeyhint="go"></label>
+      <button class="btn primary big" type="submit">Starten</button>
+    </form>`, { label: 'Fokus-Timer', cls: 'quick timer' });
+  const paint = pop => {
+    el.querySelectorAll('[data-min]').forEach(b => { const on = +b.dataset.min === min; b.setAttribute('aria-checked', on); b.classList.toggle('on', on); });
+    $('#tbig', el).textContent = fmtClock(min * 60); if (pop) popEl($('#tbig', el));
+  };
+  paint();
+  el.addEventListener('click', e => { const b = e.target.closest('[data-min]'); if (b) { min = +b.dataset.min; buzz(6); paint(true); } });
+  $('#tf', el).addEventListener('submit', e => {
+    e.preventDefault();
+    data.settings.timerMin = min; const label = $('#tl', el).value;
+    buzz(12); history.back(); setTimeout(() => startTimer(min, label), 300);
+  });
+}
+
 /* ---------- Klicks ---------- */
 app.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || !data) return;
@@ -1463,7 +1588,7 @@ app.addEventListener('click', e => {
   if (b.dataset.add) {
     const k = b.dataset.add;
     setMenu(false); $('#fab').focus({ preventScroll: true });
-    setTimeout(() => (k === 'note' ? openNote() : k === 'todo' ? openQuickTodo() : k === 'invoice' ? openInvoiceForm() : openCardForm(undefined, k.startsWith('card:') ? k.slice(5) : undefined)), 150);
+    setTimeout(() => (k === 'timer' ? openTimerSheet() : k === 'note' ? openNote() : k === 'todo' ? openQuickTodo() : k === 'invoice' ? openInvoiceForm() : openCardForm(undefined, k.startsWith('card:') ? k.slice(5) : undefined)), 150);
     return;
   }
   if (b.id === 'fab') { if (tab === 'home' || tab === 'cards') return setMenu(!menuOpen, e.detail === 0); if (tab === 'notes') openNote(); else if (tab === 'cards') openCardForm(); else if (tab === 'todos') $('#tt').focus(); return; }

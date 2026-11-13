@@ -572,21 +572,19 @@ body.noteedit .fab { opacity: 0; pointer-events: none; transform: scale(.6); }
 @keyframes islOut { 0% { transform: translate(-50%, 0) scale(1); opacity: 1; } 100% { transform: translate(-50%, -140%) scale(.55); opacity: 0; } }
 .island > * { animation: fadeIn .4s ease-out .3s backwards; }
 .island.out > * { animation: none; }
-.isl-ic { width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--orange); color: #000; box-shadow: 0 0 18px color-mix(in srgb, var(--orange) 50%, transparent); }
+.isl-ic { width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--a, var(--orange)); color: #000; box-shadow: 0 0 18px color-mix(in srgb, var(--a, var(--orange)) 50%, transparent); }
 .isl-ic .ic { width: 22px; height: 22px; stroke-width: 2.6; }
 .isl-tx { min-width: 0; }
-.isl-tx small { display: block; color: var(--orange); font-size: .78rem; font-weight: 700; letter-spacing: .02em; }
+.isl-tx small { display: block; color: var(--a, var(--orange)); font-size: .78rem; font-weight: 700; letter-spacing: .02em; }
 .isl-tx b { display: block; font-size: 1.02rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- Feinschliff: ruhiger, klarer, weicher ---------- */
 /* Glas nur in der Bedienebene: Leiste und Hinweis lassen den Inhalt darunter durchscheinen */
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   nav.tabs { background: rgba(22, 22, 27, .66); -webkit-backdrop-filter: blur(26px) saturate(1.7); backdrop-filter: blur(26px) saturate(1.7); }
-  #toast { background: rgba(34, 34, 40, .74); -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6); }
 }
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   nav.tabs { background: #121216; -webkit-backdrop-filter: none; backdrop-filter: none; }
-  #toast { background: #1c1c21; -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 /* Abschnitts-Titel (Start und To-dos) */
 .hsec + .todos { margin-top: 0; }
@@ -661,3 +659,62 @@ body.noteedit .fab { opacity: 0; pointer-events: none; transform: scale(.6); }
 .enter .hpins { animation-delay: .44s; }
 .enter .pinnote { animation: rise .6s var(--ease) backwards; animation-delay: calc(.5s + var(--i, 0) * 70ms); }
 @media (hover: hover) and (pointer: fine) { .pinnote:hover { background: #141418; } }
+
+/* ---------- Hinweis als kleine Insel ---------- */
+#toast { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 6px 18px 6px 6px; background: #000; text-align: left;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 0 16px 40px rgba(0, 0, 0, .7); transform: translate(-50%, -150%) scale(.5); transform-origin: 50% 0;
+  transition: transform .34s cubic-bezier(.5, 0, .8, .4), opacity .2s .1s; }
+#toast.show { transform: translate(-50%, 0) scale(1); transition: transform .6s cubic-bezier(.2, .9, .25, 1.12), opacity .15s; }
+#toast.show > * { animation: fadeIn .35s ease-out .16s backwards; }
+#toast.act { padding: 6px 6px 6px 6px; gap: 10px; }
+.t-ic { width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center; color: var(--a); background: color-mix(in srgb, var(--a) 20%, #000); }
+.t-ic .ic { width: 18px; height: 18px; stroke-width: 2.4; }
+.t-tx { min-width: 0; }
+.t-val { margin-left: 14px; font-weight: 700; color: var(--green); }
+.t-val.aus { color: var(--t2); }
+#toast button { margin-left: 4px; }
+
+/* ---------- Live-Insel (Fokus-Timer) ---------- */
+.live { position: fixed; z-index: 40; left: 50%; top: calc(var(--st) + 10px); width: 112px; height: 38px; border-radius: 28px; background: #000; color: #fff; cursor: pointer; overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 0 12px 34px rgba(0, 0, 0, .7); transform: translate(-50%, -160%) scale(.5); transform-origin: 50% 0; opacity: 0; --a: var(--pink);
+  transition: width .5s cubic-bezier(.2, .9, .25, 1.06), height .5s cubic-bezier(.2, .9, .25, 1.06), transform .6s cubic-bezier(.2, .9, .25, 1.12), opacity .25s; }
+.live.in { transform: translate(-50%, 0) scale(1); opacity: 1; }
+.live.bye { transform: translate(-50%, -160%) scale(.5); opacity: 0; transition: transform .36s cubic-bezier(.5, 0, .8, .4), opacity .2s .12s; }
+body.isl-busy .live { transform: translate(-50%, -30%) scale(.7); opacity: 0; pointer-events: none; }
+.live.open { width: min(calc(100vw - 28px), 360px); height: 84px; }
+.live.done { --a: var(--green); }
+.lv-c, .lv-x { position: absolute; inset: 0; display: flex; align-items: center; transition: opacity .22s; }
+.lv-c { justify-content: space-between; padding: 0 14px 0 10px; }
+.lv-x { gap: 10px; padding: 0 22px 0 14px; opacity: 0; pointer-events: none; }
+.live.open .lv-c { opacity: 0; }
+.live.open .lv-x { opacity: 1; pointer-events: auto; transition-delay: .14s; }
+.lv-ring { width: 20px; height: 20px; flex: none; rotate: -90deg; }
+.lv-ring circle { fill: none; stroke-width: 3; }
+.lv-ring .bg { stroke: color-mix(in srgb, var(--a) 26%, #000); }
+.lv-ring .fg { stroke: var(--a); stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: calc(100 - var(--p, 0)); transition: stroke-dashoffset .5s linear, stroke .3s; }
+.lv-c .lv-time { font-weight: 700; font-size: .95rem; font-variant-numeric: tabular-nums; color: var(--a); transition: color .3s; }
+.live.paused .lv-c .lv-time { animation: blink 1.6s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .35; } }
+.lv-x button { width: 52px; height: 52px; border-radius: 50%; flex: none; display: grid; place-items: center; background: #2a2a31; color: #fff; transition: transform .18s var(--ease), background-color .25s, color .25s; }
+.lv-x button:active { transform: scale(.9); }
+#lvPause { background: color-mix(in srgb, var(--a) 26%, #000); color: var(--a); }
+#lvPause .ic { stroke-width: 2.6; }
+.live.done #lvStop { display: none; }
+.lv-info { margin-left: auto; min-width: 0; display: flex; align-items: baseline; gap: 10px; }
+.lv-label { color: var(--a); font-size: .9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .3s; }
+.lv-info .lv-time { font-size: 2.1rem; font-weight: 300; letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--a); transition: color .3s; }
+.live.done .lv-info .lv-time { font-size: 1.5rem; font-weight: 700; }
+.live.done { animation: livePulse 1.4s ease-in-out infinite; }
+@keyframes livePulse { 50% { box-shadow: 0 0 0 1px rgba(47, 224, 107, .5), 0 0 34px rgba(47, 224, 107, .35); } }
+/* Inhalt rückt nach unten, solange die Live-Insel da ist */
+.screen { transition: padding-top .5s var(--ease); }
+body.has-live .screen { padding-top: calc(var(--st) + 60px); }
+/* Timer einstellen */
+.sheet.timer .q-card { display: grid; gap: 14px; }
+.sheet.timer .q-top { margin-bottom: 0; }
+.tbig { text-align: center; font-size: 4.2rem; font-weight: 200; letter-spacing: -.05em; line-height: 1; font-variant-numeric: tabular-nums; padding: 4px 0; }
+.tmins { margin: 0; justify-content: center; }
+.tmins .dchip.on { box-shadow: inset 0 0 0 1.5px var(--pink); background: color-mix(in srgb, var(--pink) 16%, #000); }
+.sheet.timer .field input { background: var(--s2); }
+.tmins { flex-wrap: nowrap; gap: 6px; }
+.tmins .dchip { flex: 1; min-width: 0; padding: 0; justify-content: center; white-space: nowrap; }
