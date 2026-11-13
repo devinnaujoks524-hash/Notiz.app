@@ -57,9 +57,29 @@ async function flush() {
 }
 
 let toastT;
-function toast(msg) {
-  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600);
+function toast(msg, { undo } = {}) {
+  const t = $('#toast');
+  t.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button type="button">Rückgängig</button>' : ''}`;
+  t.classList.toggle('act', !!undo); t.classList.add('show');
+  if (undo) t.querySelector('button').onclick = () => { t.classList.remove('show'); buzz(8); undo(); };
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), undo ? 5200 : 2600);
+}
+
+// Konfetti: kleine bunte Teilchen fliegen von einem Punkt aus auseinander
+function confetti(x, y) {
+  if (reduced()) return;
+  const box = document.createElement('div'); box.className = 'confetti'; box.setAttribute('aria-hidden', 'true'); document.body.append(box);
+  for (let i = 0; i < 36; i++) {
+    const p = document.createElement('i'), a = Math.random() * Math.PI * 2, d = 70 + Math.random() * 160, sz = 6 + Math.random() * 6, rot = () => (Math.random() * 900 - 450).toFixed(0);
+    p.style.cssText = `left:${x}px;top:${y}px;width:${sz}px;height:${sz * (Math.random() < .5 ? 1 : .45)}px;background:var(--${COLORS[i % COLORS.length]});border-radius:${Math.random() < .4 ? '50%' : '2px'}`;
+    box.append(p);
+    p.animate([
+      { transform: 'translate(-50%, -50%) scale(.3)', opacity: 1 },
+      { transform: `translate(calc(-50% + ${(Math.cos(a) * d).toFixed(0)}px), calc(-50% + ${(Math.sin(a) * d - 40).toFixed(0)}px)) rotate(${rot()}deg)`, opacity: 1, offset: .5 },
+      { transform: `translate(calc(-50% + ${(Math.cos(a) * d * 1.15).toFixed(0)}px), calc(-50% + ${(Math.sin(a) * d + 140).toFixed(0)}px)) rotate(${rot()}deg) scale(.8)`, opacity: 0 },
+    ], { duration: 1100 + Math.random() * 500, easing: 'cubic-bezier(.15, .7, .3, 1)', fill: 'forwards' });
+  }
+  setTimeout(() => box.remove(), 1800);
 }
 
 /* ---------- Dialoge ---------- */
@@ -394,12 +414,13 @@ function viewHome() {
       ${Vault.hasCode ? `<button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button>` : ''}</div></div>
     ${homeBlock(cfg, p, true)}
     ${todos}
+    ${pinsHome(cfg)}
     ${invHome()}
   </div>`;
 }
 
 /* ---------- Startseite anpassen ---------- */
-const HOME_DEF = { clock: 'thin', clockColor: 'white', clockSize: 'm', greet: 'heavy', greetColor: 'white', align: 'left', show: { greet: true, date: true, week: true, time: true } };
+const HOME_DEF = { clock: 'thin', clockColor: 'white', clockSize: 'm', greet: 'heavy', greetColor: 'white', align: 'left', show: { greet: true, date: true, week: true, time: true, pins: true } };
 const homeCfg = () => { const h = data.settings.home || {}; return { ...HOME_DEF, ...h, show: { ...HOME_DEF.show, ...(h.show || {}) } }; };
 const CLOCK_STYLES = [['thin', 'Fein'], ['bold', 'Kräftig'], ['rounded', 'Rund'], ['mono', 'Digital'], ['serif', 'Klassisch'], ['outline', 'Kontur'], ['stack', 'Gestapelt']];
 const GREET_STYLES = [['heavy', 'Kräftig'], ['thin', 'Fein'], ['rounded', 'Rund'], ['serif', 'Klassisch'], ['caps', 'Kapitälchen'], ['mono', 'Digital']];
@@ -443,7 +464,7 @@ function openCustomize(origin) {
       `<button type="button" class="hctile" role="radio" data-greet="${k}"><span class="hello hg-${k} tc-white">Guten Tag</span><small>${n}</small></button>`).join('')}</div>
     ${colorBtns('greetcolor', 'Farbe der Begrüßung')}
     <h3 class="sec">Anzeigen</h3>
-    <div class="group">${row('Begrüßung', 'z. B. „Guten Abend“', 'greet')}${row('Datum', 'Wochentag und Tag', 'date')}${row('Uhrzeit', '', 'time')}${row('Kalenderwoche', '', 'week')}</div>
+    <div class="group">${row('Begrüßung', 'z. B. „Guten Abend“', 'greet')}${row('Datum', 'Wochentag und Tag', 'date')}${row('Uhrzeit', '', 'time')}${row('Kalenderwoche', '', 'week')}${row('Angeheftete Notizen', 'Schnell zur Hand auf der Startseite', 'pins')}</div>
     <h3 class="sec">Ausrichtung</h3>
     <div class="seg" role="radiogroup" aria-label="Ausrichtung">
       <button type="button" role="radio" data-align="left">Links</button><button type="button" role="radio" data-align="center">Mitte</button>
@@ -479,6 +500,18 @@ function openCustomize(origin) {
 const firstLine = s => (s || '').split('\n').find(l => l.trim()) || '';
 let noteQ = '';
 
+// Angeheftete Notizen als kleine Kärtchen auf der Startseite
+function pinsHome(cfg) {
+  if (!cfg.show.pins) return '';
+  const list = data.notes.filter(n => n.pinned).sort(noteSort).slice(0, 8);
+  if (!list.length) return '';
+  return `<section class="hpins" aria-label="Angeheftete Notizen">
+    <div class="hsec"><span>Angeheftet</span></div>
+    <div class="pinrow">${list.map((n, i) => `<button class="pinnote" data-note="${n.id}" style="--a:var(--${n.color});--i:${i}">
+      <span class="dot"></span><b>${esc(n.title || firstLine(n.body) || 'Ohne Titel')}</b>
+      <p>${esc((n.title ? n.body : n.body.split('\n').slice(1).join('\n')).slice(0, 90))}</p></button>`).join('')}</div>
+  </section>`;
+}
 function viewNotes() {
   return `${header('Notizen')}
     <label class="search">${ic('search')}<input id="q" type="search" placeholder="Durchsuchen" aria-label="Notizen durchsuchen" value="${esc(noteQ)}"></label>
@@ -571,6 +604,12 @@ function flipNotes(mutate) {
   setTimeout(() => els.forEach(el => { el.classList.remove('shift'); el.style.translate = ''; delete el.dataset.fl; }), 450);
 }
 
+function restoreNote(n) {
+  if (!data || data.notes.some(x => x.id === n.id)) return;
+  const put = () => { data.notes.push(n); save(); };
+  if (tab === 'notes' && !sheets.length && $('#notegrid .notes')) flipNotes(put); else { put(); if (!sheets.length) renderTab(); }
+  toast('Notiz wiederhergestellt');
+}
 async function noteAction(act) {
   if (act === 'done') return exitNoteEdit();
   const n = noteMode?.sel && noteById(noteMode.sel); if (!n) return;
@@ -583,7 +622,7 @@ async function noteAction(act) {
     const el = noteEls().find(x => x.dataset.note === n.id); el?.classList.add('vanish');
     buzz(12);
     setTimeout(() => flipNotes(() => { data.notes = data.notes.filter(x => x.id !== n.id); if (noteMode) noteMode.sel = null; save(); }), 240);
-    toast('Notiz gelöscht');
+    toast('Notiz gelöscht', { undo: () => restoreNote(n) });
   }
 }
 
@@ -700,8 +739,9 @@ function openNote(id) {
     if (!isNew || data.notes.includes(n)) {
       if (!(await dialog({ title: 'Notiz löschen?', body: 'Das kann nicht rückgängig gemacht werden.', ok: 'Löschen', danger: true }))) return;
     }
+    const copy = { ...n }, had = data.notes.includes(n);
     data.notes = data.notes.filter(x => x.id !== n.id); n.title = n.body = '';
-    history.back(); toast('Notiz gelöscht');
+    history.back(); toast('Notiz gelöscht', had ? { undo: () => restoreNote(copy) } : {});
   });
   $('#nsave', el).addEventListener('click', () => {
     const filled = n.title.trim() || n.body.trim();
@@ -757,6 +797,33 @@ function todoItem(t, bare) {
     <span class="tx"><span class="tt">${esc(t.text)}</span>${t.due ? `<button class="tdue ${dueCls(t)}" data-tdue="${t.id}" aria-label="Datum ändern">${ic('cal')}${esc(fmtDue(t.due, t.time))}</button>` : ''}</span>
     ${bare ? '' : `<button class="iconbtn sm" data-deltodo="${t.id}" aria-label="Aufgabe löschen">${ic('x')}</button>`}</li>`;
 }
+// Tagesfortschritt: heute Erledigtes im Verhältnis zu allem, was noch offen ist
+let lastProg = 0;
+function progHtml(open) {
+  const day = new Date().toDateString();
+  const doneToday = data.todos.filter(t => t.done && t.doneAt && new Date(t.doneAt).toDateString() === day).length;
+  const total = doneToday + open;
+  if (!total) { lastProg = 0; return ''; }
+  const pct = Math.round(doneToday / total * 100), all = pct === 100;
+  return `<div class="prog${all ? ' all' : ''}" id="prog" data-p="${pct}" style="--p:${lastProg}" role="img" aria-label="Heute ${doneToday} von ${total} To-dos erledigt">
+    <svg class="pring" viewBox="0 0 44 44" aria-hidden="true"><circle class="bg" cx="22" cy="22" r="18"/><circle class="fg" cx="22" cy="22" r="18" pathLength="100"/></svg>
+    <div class="ptx"><b>${all ? 'Alles geschafft' : `${doneToday} von ${total} erledigt`}</b><small>${all ? 'Für heute bist du fertig.' : doneToday ? 'Weiter so, heute läuft es.' : 'Dein Fortschritt für heute'}</small></div>
+    <span class="ppct" id="ppct">${reduced() ? pct : Math.round(lastProg)} %</span>
+  </div>`;
+}
+function animateProg() {
+  const el = $('#prog'); if (!el) return;
+  const from = lastProg, to = +el.dataset.p, num = $('#ppct'); lastProg = to;
+  if (reduced() || from === to) { el.style.setProperty('--p', to); num.textContent = to + ' %'; return; }
+  requestAnimationFrame(() => requestAnimationFrame(() => el.style.setProperty('--p', to)));
+  const t0 = performance.now(), step = now => {
+    if (!num.isConnected) return;
+    const k = Math.min(1, (now - t0) / 800), e = 1 - Math.pow(1 - k, 3);
+    num.textContent = Math.round(from + (to - from) * e) + ' %';
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
 function viewTodos() {
   const open = data.todos.filter(t => !t.done).sort(todoSort);
   const done = data.todos.filter(t => t.done).sort((a, b) => b.doneAt - a.doneAt);
@@ -766,6 +833,7 @@ function viewTodos() {
       <button class="addbtn" aria-label="Hinzufügen">${ic('plus')}</button>
     </form>
     <div class="dchips" id="dchips"></div>
+    ${progHtml(open.length)}
     ${open.length ? `<div class="hsec"><span>Offen</span><b>${open.length}</b></div>
     <ul class="todos">${open.map(t => todoItem(t)).join('')}</ul>` : ''}
     ${done.length ? `<div class="hsec"><span>Erledigt</span><b class="g">${done.length}</b><button class="textbtn" data-act="cleardone">Löschen</button></div>
@@ -775,7 +843,7 @@ function viewTodos() {
 function bindTodoForm() {
   const draft = { due: '', time: '' }, box = $('#dchips');
   const draw = () => dateChips(box, draft, draw);
-  draw();
+  draw(); animateProg();
   $('#addTodo').addEventListener('submit', e => {
     e.preventDefault();
     const v = $('#tt').value.trim(); if (!v) return;
@@ -787,11 +855,67 @@ function toggleTodo(id, btn) {
   const t = data.todos.find(x => x.id === id); if (!t) return;
   t.done = !t.done; t.doneAt = Date.now(); save();
   buzz(t.done ? 12 : 6);
+  if (t.done && !data.todos.some(x => !x.done)) { // letztes To-do abgehakt: kurz feiern
+    const r = btn.getBoundingClientRect();
+    setTimeout(() => { confetti(r.left + r.width / 2, r.top + r.height / 2); buzz([10, 40, 10, 40, 18]); toast('Alles erledigt'); }, 220);
+  }
   const li = btn.closest('.todo');
   btn.setAttribute('aria-checked', t.done); li.classList.toggle('done', t.done);
   if (tab === 'home') { setTimeout(() => { if (t.done) collapseTodo(li); }, 520); return; }
   setTimeout(renderTab, 420);
 }
+// Löscht ein To-do (Zeile klappt weich zu) und bietet kurz „Rückgängig“ an
+function removeTodo(id, li) {
+  const i = data.todos.findIndex(t => t.id === id); if (i < 0) return;
+  const t = data.todos[i];
+  const go = () => {
+    data.todos = data.todos.filter(x => x.id !== id); save(); if (!sheets.length) renderTab();
+    toast('To-do gelöscht', { undo: () => {
+      if (!data || data.todos.some(x => x.id === id)) return;
+      data.todos.splice(Math.min(i, data.todos.length), 0, t); freshIds.add(id); save(); if (!sheets.length) renderTab(); freshIds.delete(id);
+    } });
+  };
+  if (!li?.isConnected || reduced()) return go();
+  li.style.height = li.offsetHeight + 'px'; void li.offsetHeight; li.classList.add('out'); buzz(8);
+  setTimeout(go, 300);
+}
+
+// Wischen: nach rechts = abhaken, nach links = löschen
+let swipe = null, swipeAt = 0;
+app.addEventListener('pointerdown', e => {
+  const li = e.target.closest('.todos .todo');
+  if (!li || e.button > 0 || li.classList.contains('out')) return;
+  swipe = { li, x: e.clientX, y: e.clientY, on: false, armed: 0, id: li.querySelector('[data-toggle]')?.dataset.toggle };
+});
+app.addEventListener('pointermove', e => {
+  const s = swipe; if (!s) return;
+  const dx = e.clientX - s.x, dy = e.clientY - s.y, ax = Math.abs(dx);
+  if (!s.on) {
+    if (Math.abs(dy) > 10 && Math.abs(dy) > ax) { swipe = null; return; }
+    if (ax < 10) return;
+    s.on = true; s.li.classList.add('swiping'); try { s.li.setPointerCapture(e.pointerId); } catch {}
+  }
+  const d = Math.sign(dx) * (ax <= 150 ? ax : 150 + (ax - 150) * .3); // danach wird es zäh wie ein Gummiband
+  s.li.style.setProperty('--dx', d.toFixed(1) + 'px'); s.li.dataset.dir = d > 0 ? 'r' : 'l';
+  const armed = Math.abs(d) > 88 ? Math.sign(d) : 0;
+  if (armed !== s.armed) { s.armed = armed; s.li.classList.toggle('armed', !!armed); buzz(armed ? 10 : 4); }
+});
+const endSwipe = e => {
+  const s = swipe; swipe = null; if (!s?.on) return;
+  swipeAt = Date.now();
+  const li = s.li; li.classList.remove('swiping');
+  if (e.type === 'pointercancel' || !s.armed) { li.style.setProperty('--dx', '0px'); li.classList.remove('armed'); return; }
+  if (s.armed > 0) {
+    li.style.setProperty('--dx', '0px');
+    setTimeout(() => { li.classList.remove('armed'); const b = li.querySelector('.chk'); if (b?.isConnected) toggleTodo(s.id, b); }, 220);
+  } else {
+    li.style.setProperty('--dx', -(li.offsetWidth + 60) + 'px');
+    setTimeout(() => removeTodo(s.id, li), 200);
+  }
+};
+app.addEventListener('pointerup', endSwipe); app.addEventListener('pointercancel', endSwipe);
+app.addEventListener('click', e => { if (Date.now() - swipeAt < 350) { e.stopPropagation(); e.preventDefault(); } }, true); // Wischen ist kein Tippen
+
 function collapseTodo(li) {
   if (!li.isConnected) return;
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1332,13 +1456,7 @@ app.addEventListener('click', e => {
   if (b.dataset.inv) return openInvoice(b.dataset.inv);
   if (b.dataset.tdue) return pickTodoDate(b.dataset.tdue);
   if (b.dataset.toggle) return toggleTodo(b.dataset.toggle, b);
-  if (b.dataset.deltodo) {
-    const id = b.dataset.deltodo, li = b.closest('.todo');
-    const go = () => { data.todos = data.todos.filter(t => t.id !== id); save(); renderTab(); };
-    if (!li || reduced()) return go();
-    li.style.height = li.offsetHeight + 'px'; void li.offsetHeight; li.classList.add('out'); buzz(8);
-    return setTimeout(go, 300);
-  }
+  if (b.dataset.deltodo) return removeTodo(b.dataset.deltodo, b.closest('.todo'));
   if (b.dataset.new === 'note') return openNote();
   if (b.dataset.new === 'card') return openCardForm();
   if (b.dataset.new === 'todo') { tab = 'todos'; renderTab(); return $('#tt').focus(); }
@@ -1356,7 +1474,14 @@ app.addEventListener('click', e => {
   if (act === 'invlist') return openInvoiceList();
   if (act === 'bio') return enrollBio().then(renderTab);
   if (act === 'cleardone') {
-    const go = () => { data.todos = data.todos.filter(t => !t.done); save(); renderTab(); };
+    const gone = data.todos.filter(t => t.done);
+    const go = () => {
+      data.todos = data.todos.filter(t => !t.done); save(); renderTab();
+      toast(gone.length === 1 ? '1 To-do gelöscht' : `${gone.length} To-dos gelöscht`, { undo: () => {
+        if (!data) return; const have = new Set(data.todos.map(t => t.id));
+        data.todos.push(...gone.filter(t => !have.has(t.id))); save(); if (!sheets.length) renderTab();
+      } });
+    };
     const rows = [...document.querySelectorAll('.todos .todo.done')];
     if (!rows.length || reduced()) return go();
     rows.forEach((li, k) => { li.style.height = li.offsetHeight + 'px'; void li.offsetHeight; li.style.transitionDelay = (k * 40) + 'ms'; li.classList.add('out'); });
