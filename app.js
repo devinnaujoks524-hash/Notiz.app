@@ -28,6 +28,7 @@ const P = {
   back: '<path d="M15 5l-7 7 7 7"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
   pause: '<path d="M8.5 5v14M15.5 5v14"/>',
+  flame: '<path d="M12 3c.5 3.5 5.5 6 5.5 11a5.5 5.5 0 01-11 0c0-2.4 1.2-4 2.6-5.3.3 1.7 1.1 2.8 2.2 3.3C11 9.5 10.8 6 12 3z"/>',
   mic: '<rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/>',
   stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/>',
   bell: '<path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/>',
@@ -79,6 +80,7 @@ const TOAST_KIND = [
   [/^Ton /, 'bell', 'green'],
   [/Gesperrt/, 'lock', 'violet'],
   [/Erinnerung/, 'clock', 'orange'],
+  [/Wieder offen/, 'back', 'orange'],
   [/Sprachnotiz|Mikrofon|Aufnahme/, 'mic', 'red'],
   [/Fingerabdruck/, 'finger', 'green'],
   [/Code/, 'lock', 'green'],
@@ -343,7 +345,7 @@ function dialog({ title, body = '', fields = [], ok = 'OK', cancel = 'Abbrechen'
     d.innerHTML = `<form method="dialog">
       <h2>${title}</h2>${body ? `<p>${body}</p>` : ''}
       ${fields.map(f => `<label class="field"><span>${f.label}</span>
-        <input name="${f.name}" type="${f.type || 'password'}" inputmode="${f.inputmode || 'numeric'}" autocomplete="off" ${f.min ? `minlength="${f.min}"` : ''} required></label>`).join('')}
+        <input name="${f.name}" type="${f.type || 'password'}" inputmode="${f.inputmode || 'numeric'}" autocomplete="off" ${f.min ? `minlength="${f.min}"` : ''} ${f.value != null ? `value="${esc(f.value)}" maxlength="300"` : ''} required></label>`).join('')}
       <div class="dlg-btns">
         ${cancel ? `<button class="btn" value="cancel" formnovalidate>${cancel}</button>` : ''}
         <button class="btn ${danger ? 'danger' : 'primary'}" value="ok">${ok}</button>
@@ -372,7 +374,7 @@ function openSheet(html, { label, cls = '', onClose, origin, originIcon } = {}) 
   el.innerHTML = html;
   // Aus einem Knopf heraus aufgehen: Der Knopf wächst als Kreis zum ganzen Blatt, das Symbol dreht sich weg.
   const glass = getTheme() === 'glass';
-  if (glass && !/\bquick\b/.test(cls)) el.insertAdjacentHTML('afterbegin', '<div class="wall" aria-hidden="true"></div>'); // Glas: das Blatt bringt sein eigenes Hintergrundbild mit (die Glasflächen darin brechen dieses Bild)
+  if (glass && !/\b(quick|spot)\b/.test(cls)) el.insertAdjacentHTML('afterbegin', '<div class="wall" aria-hidden="true"></div>'); // Glas: das Blatt bringt sein eigenes Hintergrundbild mit (die Glasflächen darin brechen dieses Bild)
   if (origin?.isConnected && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     const r = origin.getBoundingClientRect(), ox = r.left + r.width / 2, oy = r.top + r.height / 2;
     const rad = Math.hypot(Math.max(ox, innerWidth - ox), Math.max(oy, innerHeight - oy)) + 12;
@@ -404,6 +406,26 @@ function popSheet() {
   sheets[sheets.length - 1]?.el.dispatchEvent(new Event('revive')); // darunterliegende Liste neu zeichnen
 }
 // Zurück-Taste: schließt zuerst Blätter, Menü und Bearbeiten-Modus, geht dann zu Home – und beendet die App nie von selbst.
+// Schnellaktion vom App-Symbol (?a=note …) oder Text, der aus einer anderen App geteilt wurde (?text=…): merken, nach dem Entsperren ausführen
+let pending = null;
+{ const q = new URLSearchParams(location.search);
+  if (q.has('a') || q.has('text') || q.has('url') || q.has('title')) {
+    pending = { a: q.get('a'), title: q.get('title') || '', text: q.get('text') || '', url: q.get('url') || '' };
+    history.replaceState(null, '', location.pathname);
+  } }
+function runPending() {
+  const p = pending; pending = null; if (!p || !data) return;
+  if (p.a === 'note') return openNote();
+  if (p.a === 'todo') return openQuickTodo();
+  if (p.a === 'timer') return openTimerSheet();
+  if (p.a === 'search') return openSpot();
+  const body = [p.text, p.url && !p.text.includes(p.url) ? p.url : ''].filter(Boolean).join('\n').trim();
+  if (!body && !p.title) return;
+  const n = { id: uid(), title: p.title.slice(0, 120), body, color: 'blue', pinned: false, updated: Date.now() };
+  data.notes.push(n); save();
+  island({ icon: 'note', color: 'blue', title: 'Aus einer anderen App', text: 'Als Notiz gespeichert', ms: 3000 });
+  setTimeout(() => openNote(n.id), 500);
+}
 if (!history.state?.guard) { history.replaceState({ root: 1 }, ''); history.pushState({ guard: 1 }, ''); }
 addEventListener('popstate', () => {
   if (sheets.length) return popSheet();
@@ -416,7 +438,7 @@ function closeAllSheets() { while (sheets.length) { const s = sheets.pop(); s.on
 // Liegt ein ganzes Blatt über der App, wird sie (nach dem Einfahren) ausgeblendet – spart im Glas-Design viel Rechenarbeit
 function syncCover() {
   let cover = false;
-  for (let i = sheets.length - 1; i >= 0; i--) { sheets[i].el.classList.toggle('under', cover); if (!sheets[i].el.classList.contains('quick')) cover = true; }
+  for (let i = sheets.length - 1; i >= 0; i--) { sheets[i].el.classList.toggle('under', cover); if (!sheets[i].el.matches('.quick, .spot')) cover = true; }
   document.body.classList.toggle('covered', cover);
 }
 
@@ -582,6 +604,7 @@ function renderMain() {
   if (!lsGet('lumen-theme') && data.settings.theme) { applyTheme(data.settings.theme, data.settings.wall); lsSet('lumen-theme', getTheme()); lsSet('lumen-wall', getWall()); }
   enter = true;
   renderTab();
+  if (pending) setTimeout(runPending, 450);
   setTimeout(() => { checkTodoIsland(true); if (lowPower) battNote(getTheme() === 'glass' && lsGet('lumen-lens') !== '0'); }, 1500);
 }
 
@@ -687,6 +710,7 @@ function viewHome() {
   const cfg = homeCfg();
   return `<div class="home${cls} al-${cfg.align} cs-${cfg.clockSize}">
     <div class="hometop"><div class="hbtns">
+      <button class="iconbtn" data-act="search" aria-label="Suchen">${ic('search')}</button>
       <button class="iconbtn" data-act="customize" aria-label="Startseite anpassen">${ic('sliders')}</button>
       <button class="iconbtn" data-act="settings" aria-label="Einstellungen">${ic('gear')}</button>
       ${Vault.hasCode ? `<button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button>` : ''}</div></div>
@@ -1080,6 +1104,21 @@ function todoItem(t, bare) {
     <span class="tx"><span class="tt">${esc(t.text)}</span>${t.due ? `<button class="tdue ${dueCls(t)}" data-tdue="${t.id}" aria-label="Datum ändern">${ic('cal')}${esc(fmtDue(t.due, t.time))}</button>` : ''}</span>
     ${bare ? '' : `<button class="iconbtn sm" data-deltodo="${t.id}" aria-label="Aufgabe löschen">${ic('x')}</button>`}</li>`;
 }
+// Serie: an wie vielen Tagen in Folge mindestens ein To-do erledigt wurde (heute zählt mit, sobald eines abgehakt ist)
+const isoOf = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+function streak() {
+  const days = new Set(data?.settings.days || []); let n = 0;
+  const d = new Date(); if (!days.has(isoOf(d))) d.setDate(d.getDate() - 1);
+  while (days.has(isoOf(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function markDay() {
+  const st = data.settings, today = todayIso(); st.days ||= [];
+  if (st.days.includes(today)) return;
+  st.days = [...st.days, today].slice(-120);
+  const n = streak();
+  if (n > 1) setTimeout(() => island({ icon: 'flame', color: 'orange', title: `Serie · ${n} Tage`, text: `${n} Tage in Folge etwas erledigt`, ms: 3400 }), 700);
+}
 // Tagesfortschritt: heute Erledigtes im Verhältnis zu allem, was noch offen ist
 let lastProg = 0;
 function progHtml(open) {
@@ -1090,7 +1129,7 @@ function progHtml(open) {
   const pct = Math.round(doneToday / total * 100), all = pct === 100;
   return `<div class="prog${all ? ' all' : ''}" id="prog" data-p="${pct}" style="--p:${lastProg}" role="img" aria-label="Heute ${doneToday} von ${total} To-dos erledigt">
     <svg class="pring" viewBox="0 0 44 44" aria-hidden="true"><circle class="bg" cx="22" cy="22" r="18"/><circle class="fg" cx="22" cy="22" r="18" pathLength="100"/></svg>
-    <div class="ptx"><b>${all ? 'Alles geschafft' : `${doneToday} von ${total} erledigt`}</b><small>${all ? 'Für heute bist du fertig.' : doneToday ? 'Weiter so, heute läuft es.' : 'Dein Fortschritt für heute'}</small></div>
+    <div class="ptx"><b>${all ? 'Alles geschafft' : `${doneToday} von ${total} erledigt`}${streak() > 1 ? `<span class="streak" title="Tage in Folge mit erledigten To-dos">${ic('flame')}${streak()}</span>` : ''}</b><small>${all ? 'Für heute bist du fertig.' : doneToday ? 'Weiter so, heute läuft es.' : 'Dein Fortschritt für heute'}</small></div>
     <span class="ppct" id="ppct">${reduced() ? pct : Math.round(lastProg)} %</span>
   </div>`;
 }
@@ -1136,7 +1175,7 @@ function bindTodoForm() {
 }
 function toggleTodo(id, btn) {
   const t = data.todos.find(x => x.id === id); if (!t) return;
-  t.done = !t.done; t.doneAt = Date.now(); save();
+  t.done = !t.done; t.doneAt = Date.now(); if (t.done) markDay(); save();
   buzz(t.done ? 12 : 6);
   if (t.done && !data.todos.some(x => !x.done)) { // letztes To-do abgehakt: kurz feiern
     const r = btn.getBoundingClientRect();
@@ -1169,10 +1208,13 @@ app.addEventListener('pointerdown', e => {
   const li = e.target.closest('.todos .todo');
   if (!li || e.button > 0 || li.classList.contains('out')) return;
   swipe = { li, x: e.clientX, y: e.clientY, on: false, armed: 0, id: li.querySelector('[data-toggle]')?.dataset.toggle };
+  const s = swipe;
+  if (!e.target.closest('button')) s.hold = setTimeout(() => { if (swipe === s && !s.on) { swipe = null; swipeAt = Date.now(); todoMenu(s.id, li); } }, 480); // gedrückt halten = Kontextmenü
 });
 app.addEventListener('pointermove', e => {
   const s = swipe; if (!s) return;
   const dx = e.clientX - s.x, dy = e.clientY - s.y, ax = Math.abs(dx);
+  if (Math.hypot(dx, dy) > 8) clearTimeout(s.hold);
   if (!s.on) {
     if (Math.abs(dy) > 10 && Math.abs(dy) > ax) { swipe = null; return; }
     if (ax < 10) return;
@@ -1184,7 +1226,7 @@ app.addEventListener('pointermove', e => {
   if (armed !== s.armed) { s.armed = armed; s.li.classList.toggle('armed', !!armed); buzz(armed ? 10 : 4); }
 });
 const endSwipe = e => {
-  const s = swipe; swipe = null; if (!s?.on) return;
+  const s = swipe; swipe = null; clearTimeout(s?.hold); if (!s?.on) return;
   swipeAt = Date.now();
   const li = s.li; li.classList.remove('swiping');
   if (e.type === 'pointercancel' || !s.armed) { li.style.setProperty('--dx', '0px'); li.classList.remove('armed'); return; }
@@ -1278,7 +1320,7 @@ function checkTodoIsland(summary) {
         t.due = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; t.time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
         islandNotified.delete(t.id); save(); if (!sheets.length) renderTab(); toast('Erinnerung in 15 Min.');
       } },
-      { icon: 'check', color: 'green', label: 'Erledigt', run: () => { t.done = true; t.doneAt = Date.now(); save(); if (!sheets.length) renderTab(); toast('Erledigt'); } },
+      { icon: 'check', color: 'green', label: 'Erledigt', run: () => { t.done = true; t.doneAt = Date.now(); markDay(); save(); if (!sheets.length) renderTab(); toast('Erledigt'); } },
     ] });
   });
 }
@@ -1881,6 +1923,140 @@ function openTimerSheet() {
   });
 }
 
+/* ---------- Kontextmenü: To-do gedrückt halten (wie bei iOS) ---------- */
+// Die Zeile hebt sich aus dem weichgezeichneten Hintergrund, darunter klappt ein Menü auf.
+function todoMenu(id, li) {
+  const t = data.todos.find(x => x.id === id); if (!t || !li.isConnected) return;
+  buzz(16);
+  const r = li.getBoundingClientRect(), below = r.bottom + 290 < innerHeight;
+  const items = [
+    [t.done ? 'reopen' : 'done', t.done ? 'Wieder öffnen' : 'Erledigt', t.done ? 'back' : 'check'],
+    ['today', 'Heute', 'cal'], ['tmr', 'Morgen', 'clock'], ['pick', 'Datum wählen …', 'cal'],
+    ['rename', 'Umbenennen', 'edit'], ['del', 'Löschen', 'trash'],
+  ];
+  const el = document.createElement('div');
+  el.className = 'ctx'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Aktionen für ' + t.text);
+  el.innerHTML = `<div class="ctx-bg"></div>
+    <div class="ctx-lift" style="left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px"></div>
+    <div class="ctx-menu ${below ? 'down' : 'up'}" role="menu" style="left:${Math.max(14, Math.min(r.left, innerWidth - 254))}px;${below ? `top:${r.bottom + 10}px` : `bottom:${innerHeight - r.top + 10}px`}">
+      ${items.map(([k, label, icon], i) => `<button type="button" role="menuitem" data-k="${k}" class="${k === 'del' ? 'red' : ''}" style="--i:${i}"><span>${label}</span>${ic(icon)}</button>`).join('')}
+    </div>`;
+  const clone = li.cloneNode(true); clone.classList.remove('pop', 'swiping', 'armed'); clone.removeAttribute('style'); clone.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+  clone.setAttribute('aria-hidden', 'true'); clone.inert = true;
+  el.querySelector('.ctx-lift').append(clone);
+  document.body.append(el); li.classList.add('lifted');
+  requestAnimationFrame(() => el.classList.add('in'));
+  const prev = document.activeElement;
+  el.querySelector('[data-k]').focus({ preventScroll: true });
+  const close = then => {
+    if (!el.isConnected || el.classList.contains('out')) return;
+    el.classList.remove('in'); el.classList.add('out'); li.classList.remove('lifted');
+    removeEventListener('keydown', key, true);
+    setTimeout(() => { el.remove(); then?.(); if (!then) prev?.focus?.({ preventScroll: true }); }, reduced() ? 0 : 260);
+  };
+  const key = e => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+  addEventListener('keydown', key, true);
+  el.querySelector('.ctx-bg').addEventListener('click', () => close());
+  el.querySelector('.ctx-lift').addEventListener('click', () => close());
+  el.querySelector('.ctx-menu').addEventListener('click', e => {
+    const b = e.target.closest('[data-k]'); if (!b) return; buzz(8);
+    const k = b.dataset.k;
+    close(async () => {
+      if (!data.todos.includes(t)) return;
+      if (k === 'done' || k === 'reopen') { t.done = k === 'done'; t.doneAt = Date.now(); if (t.done) markDay(); save(); renderTab(); return toast(t.done ? 'Erledigt' : 'Wieder offen'); }
+      if (k === 'today' || k === 'tmr') { t.due = k === 'today' ? todayIso() : dateIsoOffset(1); save(); renderTab(); return; }
+      if (k === 'pick') return pickTodoDate(t.id);
+      if (k === 'del') return removeTodo(t.id, document.querySelector(`.todo [data-toggle="${t.id}"]`)?.closest('.todo'));
+      if (k === 'rename') {
+        const v = await dialog({ title: 'Umbenennen', fields: [{ name: 't', label: 'Aufgabe', type: 'text', inputmode: 'text', value: t.text }], ok: 'Sichern' });
+        if (v?.t?.trim()) { t.text = v.t.trim().slice(0, 300); save(); renderTab(); }
+      }
+    });
+  });
+}
+
+/* ---------- Suche über alles (wie Spotlight) ---------- */
+const fold = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'ss');
+function hl(text, q) { // Treffer hervorheben
+  const t = String(text || ''); if (!q) return esc(t);
+  const i = fold(t).indexOf(q); if (i < 0) return esc(t);
+  return esc(t.slice(0, i)) + '<mark>' + esc(t.slice(i, i + q.length)) + '</mark>' + esc(t.slice(i + q.length));
+}
+function snip(text, q) { // Ausschnitt rund um den Treffer
+  const t = String(text || '').replace(/\s+/g, ' ').trim(), i = q ? fold(t).indexOf(q) : -1;
+  if (i < 0) return t.slice(0, 70);
+  const a = Math.max(0, i - 24);
+  return (a ? '…' : '') + t.slice(a, a + 70);
+}
+function openSpot() {
+  if ($('.sheet.spot')) return;
+  const el = openSheet(`
+    <div class="spot-bg" data-close></div>
+    <div class="spot-in">
+      <label class="spot-field">${ic('search')}<input id="sq" type="search" placeholder="Suchen in Lumen" aria-label="Suchen in Lumen" autocomplete="off" enterkeyhint="search"></label>
+      <button type="button" class="textbtn spot-x" data-close>Abbrechen</button>
+    </div>
+    <div class="spot-res" id="sres" aria-live="polite"></div>`, { label: 'Suchen', cls: 'spot' });
+  const input = $('#sq', el), box = $('#sres', el);
+  const row = (go, icon, color, title, sub, i) => `<button type="button" class="spot-row" data-go="${go}" style="--a:var(--${color});--i:${i}"><span class="spot-ic">${ic(icon)}</span><span class="spot-tx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span></button>`;
+  const group = (name, rows) => rows.length ? `<h3 class="spot-h">${name}</h3><div class="spot-grp">${rows.join('')}</div>` : '';
+  let k = 0;
+  const paint = () => {
+    const q = fold(input.value.trim()); k = 0;
+    if (!q) { // Vorschläge
+      box.innerHTML = group('Vorschläge', [
+        row('new:note', 'note', 'yellow', 'Neue Notiz', '', k++), row('new:todo', 'check', 'orange', 'Neues To-do', '', k++),
+        row('new:timer', 'clock', 'pink', 'Fokus-Timer starten', '', k++), row('new:card', 'card', 'violet', 'Karte hinzufügen', '', k++),
+      ]) + group('Zuletzt bearbeitet', [...data.notes].sort((a, b) => b.updated - a.updated).slice(0, 3).map(n => row('note:' + n.id, n.audio?.length ? 'mic' : 'note', n.color, esc(noteTitle(n)), esc(fmtDay(n.updated)), k++)));
+      return;
+    }
+    const has = (...xs) => xs.some(x => fold(x).includes(q));
+    const notes = data.notes.filter(n => has(n.title, n.body)).slice(0, 6).map(n => row('note:' + n.id, n.audio?.length ? 'mic' : 'note', n.color, hl(noteTitle(n), q), hl(snip(n.title && fold(n.title).includes(q) ? n.body : n.body || '', q), q), k++));
+    const todos = data.todos.filter(t => has(t.text)).slice(0, 6).map(t => row('todo:' + t.id, t.done ? 'check' : 'check', t.done ? 'green' : 'orange', hl(t.text, q), t.done ? 'Erledigt' : t.due ? esc(fmtDue(t.due, t.time)) : 'Offen', k++));
+    const cards = data.cards.filter(c => has(c.name, c.holder, c.email, c.member)).slice(0, 6).map(c => row('card:' + c.id, c.type === 'mail' ? 'mail' : c.type === 'member' ? 'bag' : 'card', 'violet', hl(c.name, q), hl(c.type === 'mail' ? c.email : c.holder, q), k++));
+    const invs = (data.invoices || []).filter(i => has(i.vendor, i.number, i.note)).slice(0, 6).map(i => row('inv:' + i.id, 'receipt', 'green', hl(i.vendor, q), esc(money(i.gross, i.currency)) + (i.status === 'paid' ? ' · Bezahlt' : ''), k++));
+    const html = group('Notizen', notes) + group('To-dos', todos) + group('Karten', cards) + group('Rechnungen', invs);
+    box.innerHTML = html || `<div class="spot-none">${ic('search')}<b>Keine Treffer</b><p>Nichts enthält „${esc(input.value.trim())}“.</p></div>`;
+  };
+  paint();
+  input.addEventListener('input', paint);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); box.querySelector('.spot-row')?.click(); } });
+  box.addEventListener('click', e => {
+    const b = e.target.closest('[data-go]'); if (!b) return;
+    const [kind, id] = b.dataset.go.split(':'); buzz(8);
+    history.back(); // Suche schließen, dann öffnen
+    setTimeout(() => {
+      if (!data) return;
+      if (kind === 'new') return id === 'note' ? openNote() : id === 'todo' ? openQuickTodo() : id === 'timer' ? openTimerSheet() : openCardForm();
+      if (kind === 'note') return openNote(id);
+      if (kind === 'card') return openViewer(id);
+      if (kind === 'inv') return openInvoice(id);
+      if (kind === 'todo') {
+        if (tab !== 'todos') switchTab('todos');
+        setTimeout(() => { const li = document.querySelector(`#screen .todo [data-toggle="${id}"]`)?.closest('.todo'); if (!li) return; li.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' }); li.classList.add('flash'); setTimeout(() => li.classList.remove('flash'), 1600); }, 450);
+      }
+    }, 300);
+  });
+  setTimeout(() => input.focus(), 120);
+}
+// Auf der Startseite oben nach unten ziehen öffnet die Suche
+{
+  let y0 = null, pulled = 0;
+  app.addEventListener('touchstart', e => { y0 = tab === 'home' && !sheets.length && scrollY <= 0 && e.touches.length === 1 ? e.touches[0].clientY : null; pulled = 0; }, { passive: true });
+  app.addEventListener('touchmove', e => {
+    if (y0 == null) return;
+    const d = e.touches[0].clientY - y0, home = $('#screen .home');
+    pulled = d;
+    if (home && d > 0) home.style.transform = `translateY(${Math.min(70, d * .35).toFixed(1)}px)`;
+  }, { passive: true });
+  app.addEventListener('touchend', () => {
+    if (y0 == null) return; y0 = null;
+    const home = $('#screen .home');
+    if (home) { home.style.transition = 'transform .4s var(--ease)'; home.style.transform = ''; setTimeout(() => { home.style.transition = ''; }, 400); }
+    if (pulled > 90) { buzz(10); openSpot(); }
+  });
+}
+
 /* ---------- Sprachnotizen: Aufnahme- und Player-Insel ---------- */
 const canRec = !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
 const fmtT = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${pad2(s % 60)}`; };
@@ -2117,6 +2293,7 @@ app.addEventListener('click', e => {
   if (act === 'lock') return lockNow();
   if (act === 'settings') return openSettings(b);
   if (act === 'customize') return openCustomize(b);
+  if (act === 'search') return openSpot();
   if (act === 'invlist') return openInvoiceList();
   if (act === 'bio') return enrollBio().then(renderTab);
   if (act === 'cleardone') {
