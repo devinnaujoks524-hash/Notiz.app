@@ -4,7 +4,7 @@ Private Notizen, To-dos und 3D-Karten – komplett schwarz, knallige Farben, ver
 
 ## Funktionen
 
-- **Notizen** mit Farben, Anheften und Suche
+- **Notizen** mit Farben, Anheften, Suche und **Sprachnotizen** (Aufnahme und Wiedergabe als Insel oben)
 - **To-dos** zum Abhaken
 - **Rechnungen** mit Foto, Steuer (DE, AT, CH, USA u. a. oder eigene), Netto/Brutto-Rechnung und Status
 - **Visualisierung:** Bank-, Kundenkarten und E-Mail-Konten (als Umschlag) schweben als 3D-Modell (ziehen = drehen, tippen = umdrehen)
@@ -23,7 +23,7 @@ Private Notizen, To-dos und 3D-Karten – komplett schwarz, knallige Farben, ver
 ## Installieren
 
 1. Repo → **Settings → Pages** → Source: *Deploy from a branch* → Branch `main`, Ordner `/ (root)` → **Save**.
-2. Nach 1–2 Minuten ist die App unter `https://devinnaujoks524-hash.github.io/notiz.app/` erreichbar.
+2. Nach 1–2 Minuten ist die App unter `https://devinnaujoks524-hash.github.io/Notiz.app/` erreichbar.
 3. Link in **Chrome** auf dem Handy öffnen → Menü (⋮) → **App installieren** bzw. **Zum Startbildschirm hinzufügen**.
 
 ## Aufbau

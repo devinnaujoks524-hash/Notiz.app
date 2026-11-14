@@ -5,7 +5,8 @@ const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
-const buzz = ms => { try { navigator.vibrate?.(ms); } catch {} };
+const soundOn = () => { try { return localStorage.getItem('lumen-sound') !== '0'; } catch { return true; } };
+const buzz = ms => { try { if (soundOn()) navigator.vibrate?.(ms); } catch {} };
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 // Im Glas-Design nur schieben statt einblenden: Durchsichtigkeit auf einem Behälter würde die Lichtbrechung seiner Glasflächen kurz abschalten
 const fadeIn = el => { if (el && !reduced()) el.animate?.([document.documentElement.dataset.theme === 'glass' ? { transform: 'translateY(8px)' } : { opacity: .35, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)' }); };
@@ -27,6 +28,13 @@ const P = {
   back: '<path d="M15 5l-7 7 7 7"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
   pause: '<path d="M8.5 5v14M15.5 5v14"/>',
+  mic: '<rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/>',
+  stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/>',
+  bell: '<path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/>',
+  belloff: '<path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/><path d="M3.5 3.5l17 17"/>',
+  battery: '<rect x="2.5" y="7" width="17" height="10" rx="2.5"/><path d="M22 10.5v3"/><path d="M6 10.5v3" stroke-width="3"/>',
+  back10: '<path d="M4.5 13a7.5 7.5 0 107.5-7.5H8.5"/><path d="M11 2.5L8 5.5l3 3"/>',
+  fwd10: '<path d="M19.5 13A7.5 7.5 0 1112 5.5h3.5"/><path d="M13 2.5l3 3-3 3"/>',
   play: '<path d="M8 5l11 7-11 7z"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
@@ -67,6 +75,11 @@ const TOAST_KIND = [
   [/angeheftet|gelöst/, 'pin', 'yellow'],
   [/Kopiert/, 'copy', 'blue'],
   [/Timer/, 'clock', 'pink'],
+  [/^Lautlos/, 'belloff', 'red'],
+  [/^Ton /, 'bell', 'green'],
+  [/Gesperrt/, 'lock', 'violet'],
+  [/Erinnerung/, 'clock', 'orange'],
+  [/Sprachnotiz|Mikrofon|Aufnahme/, 'mic', 'red'],
   [/Fingerabdruck/, 'finger', 'green'],
   [/Code/, 'lock', 'green'],
 ];
@@ -77,7 +90,7 @@ function toast(msg, { undo } = {}) {
   const sw = msg.match(/^(.*) (an|aus)$/);
   t.innerHTML = `<span class="t-ic" style="--a:var(--${color})">${ic(icon)}</span><span class="t-tx">${esc(sw ? sw[1] : msg)}</span>${
     sw ? `<span class="t-val ${sw[2]}">${sw[2] === 'an' ? 'An' : 'Aus'}</span>` : ''}${undo ? '<button type="button">Rückgängig</button>' : ''}`;
-  t.classList.toggle('act', !!undo); t.classList.add('show'); yieldLive();
+  t.classList.toggle('act', !!undo); t.classList.toggle('sil', msg === 'Lautlos'); t.classList.add('show'); yieldLive();
   if (color === 'red' && icon === 'x') buzz([18, 50, 18]);
   const hide = () => { t.classList.remove('show'); yieldLive(); };
   if (undo) t.querySelector('button').onclick = () => { hide(); buzz(8); undo(); };
@@ -127,9 +140,24 @@ const LG_KINDS = [
   ['dark', '#toast, .island, .live, .dlg, .nbar, .ulock', { blur: 8, scale: 54, bezel: 20, rim: 1 }],
   ['bar', 'nav.tabs, .fab', { blur: 9, scale: 60, bezel: 22, rim: 1 }], // liegt über scrollendem Inhalt: stärker weichzeichnen, damit die Beschriftung lesbar bleibt
   ['clear', '.iconbtn:not(.sm), .fm-item, .search, .addrow, .seg, .dchip, .more, .btn:not(.primary):not(.danger)', { blur: 2.2, scale: 62, bezel: 22, rim: 1 }],
-  ['frost', '.note, .todo, .group, .invrow, .prog, .pinnote, .sumbox, .pill, .hctile, .themetile, .hcprev, .nbody, .field input, .field select, .field textarea', { blur: 7, scale: 48, bezel: 18, rim: .9 }],
+  ['frost', '.memo, .note, .todo, .group, .invrow, .prog, .pinnote, .sumbox, .pill, .hctile, .themetile, .hcprev, .nbody, .field input, .field select, .field textarea', { blur: 7, scale: 48, bezel: 18, rim: .9 }],
 ];
 const LG_SEL = LG_KINDS.map(k => k[1]).join(', ');
+// Akku schwach (≤ 20 %, lädt nicht): Lichtbrechung pausiert, bis wieder geladen wird
+let lowPower = false, battNoted = false, battLevel = 1;
+function battNote(wasLens) {
+  if (battNoted || !data) return; battNoted = true;
+  island({ icon: 'battery', color: 'red', title: `Akku schwach · ${Math.round(battLevel * 100)} %`, text: wasLens ? 'Lichtbrechung pausiert' : 'Lumen spart Strom', ms: 4200 });
+}
+navigator.getBattery?.().then(b => {
+  const check = () => {
+    battLevel = b.level;
+    const low = !b.charging && b.level <= .2; if (low === lowPower) return;
+    const wasLens = lg.on; lowPower = low; lgSync();
+    if (low) battNote(wasLens); else if (!wasLens && lg.on) toast('Lichtbrechung wieder aktiv');
+  };
+  b.addEventListener('levelchange', check); b.addEventListener('chargingchange', check); check();
+}).catch(() => {});
 const lg = { ok: /Chrome\/\d+/.test(navigator.userAgent) && !!window.CSS?.supports?.('backdrop-filter', 'url(#a)'), on: false, n: 0, made: new Map(), timers: new WeakMap(), defs: null, ro: null, mo: null };
 // Zeichnet die zwei Karten für eine abgerundete Fläche: Verschiebung (R = x, G = y) in halber Auflösung, Lichtrand in voller
 function lgMaps(w, h, r, bez, rim) {
@@ -193,7 +221,7 @@ function lgScan(root) {
   }
 }
 function lgSync() {
-  const want = lg.ok && getTheme() === 'glass' && lsGet('lumen-lens') !== '0' && !matchMedia('(prefers-reduced-transparency: reduce), (prefers-contrast: more)').matches;
+  const want = lg.ok && !lowPower && getTheme() === 'glass' && lsGet('lumen-lens') !== '0' && !matchMedia('(prefers-reduced-transparency: reduce), (prefers-contrast: more)').matches;
   if (want === lg.on) return;
   lg.on = want; document.documentElement.toggleAttribute('data-lg', want);
   if (!want) {
@@ -510,10 +538,11 @@ function playUnlock(done) {
 
 async function lockNow() {
   if (!Vault.hasCode) return;
+  if (rec) stopRec(); await recDone; stopPlay(); // laufende oder gerade gestoppte Aufnahme wird vorher gesichert
   await flush();
   Vault.lock(); data = null;
   if (updateReady) return location.reload();
-  renderLock();
+  renderLock(); toast('Gesperrt');
 }
 
 document.addEventListener('visibilitychange', async () => {
@@ -553,7 +582,7 @@ function renderMain() {
   if (!lsGet('lumen-theme') && data.settings.theme) { applyTheme(data.settings.theme, data.settings.wall); lsSet('lumen-theme', getTheme()); lsSet('lumen-wall', getWall()); }
   enter = true;
   renderTab();
-  setTimeout(() => checkTodoIsland(true), 1500);
+  setTimeout(() => { checkTodoIsland(true); if (lowPower) battNote(getTheme() === 'glass' && lsGet('lumen-lens') !== '0'); }, 1500);
 }
 
 // Das Plus-Menü passt sich dem Bereich an: Home = Notiz/To-do/Visual, Visual = Art der Karte
@@ -746,6 +775,7 @@ function openCustomize(origin) {
 }
 
 /* ---------- Notizen ---------- */
+const noteTitle = n => n.title || firstLine(n.body) || (n.audio?.length ? 'Sprachnotiz' : 'Ohne Titel');
 const firstLine = s => (s || '').split('\n').find(l => l.trim()) || '';
 let noteQ = '';
 
@@ -757,7 +787,7 @@ function pinsHome(cfg) {
   return `<section class="hpins" aria-label="Angeheftete Notizen">
     <div class="hsec"><span>Angeheftet</span></div>
     <div class="pinrow">${list.map((n, i) => `<button class="pinnote" data-note="${n.id}" style="--a:var(--${n.color});--i:${i}">
-      <span class="dot"></span><b>${esc(n.title || firstLine(n.body) || 'Ohne Titel')}</b>
+      <span class="dot"></span><b>${esc(noteTitle(n))}</b>
       <p>${esc((n.title ? n.body : n.body.split('\n').slice(1).join('\n')).slice(0, 90))}</p></button>`).join('')}</div>
   </section>`;
 }
@@ -773,8 +803,8 @@ function noteGrid() {
   if (!list.length) return emptyState('search', 'Nichts gefunden', `Keine Notiz enthält „${esc(noteQ)}“.`);
   return `<div class="notes">${list.map(n => `
     <button class="note" data-note="${n.id}" style="--a:var(--${n.color})">
-      <span class="ntop"><span class="dot"></span>${n.pinned ? `<span class="pinned">${ic('pin')}</span>` : ''}</span>
-      <b>${esc(n.title || firstLine(n.body) || 'Ohne Titel')}</b>
+      <span class="ntop"><span class="dot"></span><span class="nright">${n.audio?.length ? `<span class="nmic" aria-label="${n.audio.length} Sprachnotiz${n.audio.length > 1 ? 'en' : ''}">${ic('mic')}${n.audio.length > 1 ? n.audio.length : ''}</span>` : ''}${n.pinned ? `<span class="pinned">${ic('pin')}</span>` : ''}</span></span>
+      <b>${esc(noteTitle(n))}</b>
       <p>${esc((n.title ? n.body : n.body.split('\n').slice(1).join('\n')).slice(0, 220))}</p>
       <small>${fmtDay(n.updated)}</small>
     </button>`).join('')}</div>`;
@@ -957,6 +987,7 @@ function openNote(id) {
   const el = openSheet(`
     <div class="sheet-top">
       <button class="iconbtn" data-close aria-label="Zurück">${ic('back')}</button><span class="grow"></span>
+      ${canRec ? `<button class="iconbtn" id="nrec" aria-label="Sprachnotiz aufnehmen">${ic('mic')}</button>` : ''}
       <button class="iconbtn" id="pin" aria-pressed="${n.pinned}" aria-label="Anheften">${ic('pin')}</button>
       <button class="iconbtn" id="del" aria-label="Notiz löschen">${ic('trash')}</button>
       <button class="btn primary sm" id="nsave">Sichern</button>
@@ -965,10 +996,12 @@ function openNote(id) {
     <div class="swatches" role="radiogroup" aria-label="Farbe">
       ${COLORS.map(c => `<button role="radio" aria-checked="${c === n.color}" aria-label="${c}" data-color="${c}" style="--a:var(--${c})"></button>`).join('')}
     </div>
+    <div class="memos" id="memos"></div>
     <textarea class="nbody" id="nb" placeholder="Schreib los …" aria-label="Notiztext">${esc(n.body)}</textarea>
     <p class="saved">${ic('lock')}Automatisch gespeichert · verschlüsselt</p>`,
   { label: 'Notiz', cls: 'editor', onClose: () => {
-      if (!n.title.trim() && !n.body.trim()) data.notes = data.notes.filter(x => x.id !== n.id);
+      if (rec?.n === n) stopRec(); // Aufnahme läuft noch: wird gesichert, auch wenn die Notiz sonst leer ist
+      else if (!n.title.trim() && !n.body.trim() && !n.audio?.length) data.notes = data.notes.filter(x => x.id !== n.id);
       save();
     } });
   el.style.setProperty('--a', `var(--${n.color})`);
@@ -993,11 +1026,12 @@ function openNote(id) {
     history.back(); toast('Notiz gelöscht', had ? { undo: () => restoreNote(copy) } : {});
   });
   $('#nsave', el).addEventListener('click', () => {
-    const filled = n.title.trim() || n.body.trim();
+    const filled = n.title.trim() || n.body.trim() || n.audio?.length || rec?.n === n;
     if (filled) touch();
     buzz(12); history.back();
     toast(filled ? 'Notiz gespeichert' : 'Leere Notiz verworfen');
   });
+  bindMemos(el, n);
   if (isNew) setTimeout(() => $('#nb', el).focus(), 280);
 }
 
@@ -1192,7 +1226,11 @@ function nextIsland() {
   const el = document.createElement('div');
   el.className = 'island'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
   if (o.color) el.style.setProperty('--a', `var(--${o.color})`);
-  el.innerHTML = `<span class="isl-ic">${ic(o.icon || 'check')}</span><span class="isl-tx"><small>${esc(o.title)}</small><b>${esc(o.text)}</b></span>`;
+  if (o.card) { // wie „Pass hinzugefügt“: die neue Karte springt heraus, darunter zeichnet sich ein Haken
+    el.classList.add('cardisl');
+    el.innerHTML = `<span class="isl-card">${cardMarkup(o.card)}</span><span class="isl-ok"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><b class="isl-ct">${esc(o.title)}</b>`;
+  } else el.innerHTML = `<span class="isl-ic">${ic(o.icon || 'check')}</span><span class="isl-tx"><small>${esc(o.title)}</small><b>${esc(o.text)}</b></span>${
+    o.actions ? `<span class="isl-act">${o.actions.map((a, i) => `<button type="button" data-i="${i}" aria-label="${esc(a.label)}" style="--a:var(--${a.color})">${ic(a.icon)}</button>`).join('')}</span>` : ''}`;
   document.body.append(el); void el.offsetWidth; el.classList.add('in'); buzz([14, 40, 10]); yieldLive();
   let closed = false, y0 = null;
   const timer = setTimeout(() => close(), o.ms || 4300);
@@ -1202,7 +1240,11 @@ function nextIsland() {
     setTimeout(() => { el.remove(); yieldLive(); nextIsland(); }, 520);
     if (go) o.onTap?.();
   };
-  el.addEventListener('click', () => close(true));
+  el.addEventListener('click', e => { // Knopf in der Insel (wie Annehmen/Ablehnen) oder Tippen auf die Insel
+    const b = e.target.closest('[data-i]');
+    if (b) { e.stopPropagation(); buzz(10); o.actions[b.dataset.i].run(); return close(); }
+    close(true);
+  });
   el.addEventListener('pointerdown', e => { y0 = e.clientY; });
   el.addEventListener('pointermove', e => { if (y0 != null && y0 - e.clientY > 14) { y0 = null; close(); } }); // nach oben wischen = wegschieben
 }
@@ -1229,7 +1271,15 @@ function checkTodoIsland(summary) {
   }
   const now = new Date(), hhmm = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
   data.todos.filter(t => !t.done && t.due === todayIso() && t.time && t.time <= hhmm && !islandNotified.has(t.id)).forEach(t => {
-    islandNotified.add(t.id); island({ title: 'Jetzt · ' + t.time, text: t.text, onTap: goTodos });
+    islandNotified.add(t.id);
+    island({ icon: 'bell', title: 'Jetzt · ' + t.time, text: t.text, onTap: goTodos, ms: 9000, actions: [
+      { icon: 'clock', color: 'orange', label: 'In 15 Minuten erinnern', run: () => {
+        const d = new Date(Date.now() + 15 * 60e3);
+        t.due = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; t.time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+        islandNotified.delete(t.id); save(); if (!sheets.length) renderTab(); toast('Erinnerung in 15 Min.');
+      } },
+      { icon: 'check', color: 'green', label: 'Erledigt', run: () => { t.done = true; t.doneAt = Date.now(); save(); if (!sheets.length) renderTab(); toast('Erledigt'); } },
+    ] });
   });
 }
 setInterval(() => checkTodoIsland(false), 30000);
@@ -1343,7 +1393,7 @@ function openCardForm(id, type) {
     if (!c.name.trim()) return (err.textContent = 'Gib der Karte einen Namen.');
     if (c.type === 'mail' && !String(c.email).trim()) return (err.textContent = 'Gib die E-Mail-Adresse ein.');
     if (orig) Object.assign(orig, c); else data.cards.push(c);
-    save(); history.back(); toast(orig ? 'Karte aktualisiert' : 'Karte hinzugefügt');
+    save(); history.back(); if (orig) toast('Karte aktualisiert'); else island({ card: c, title: 'Karte hinzugefügt', ms: 2600 });
     if (!orig) setTimeout(() => openViewer(c.id), 320);
   });
 }
@@ -1363,6 +1413,9 @@ function openSettings(origin) {
       <div class="row"><div><b>Lichtbrechung</b><small>${lg.ok ? 'Der Hintergrund biegt sich am Rand wie durch echtes Glas. Ausschalten, falls es ruckelt.' : 'In diesem Browser nicht verfügbar – geht in Chrome.'}</small></div>
         <button class="switch" id="lensSw" role="switch" aria-checked="${lg.ok && lsGet('lumen-lens') !== '0'}" aria-label="Lichtbrechung" ${lg.ok ? '' : 'disabled'}></button></div>
     </div>
+    <h3 class="sec">Töne</h3>
+    <div class="group"><div class="row"><div><b>Töne & Vibration</b><small>Timer-Ton und Vibration beim Antippen</small></div>
+      <button class="switch" id="sndSw" role="switch" aria-checked="${soundOn()}" aria-label="Töne und Vibration"></button></div></div>
     <h3 class="sec">Sicherheit</h3>
     <div class="group">
       <div class="row"><div><b>Code-Sperre</b><small id="codeTxt">${Vault.hasCode ? 'App ist mit Code geschützt' : 'Aus – die App öffnet sich von selbst'}</small></div>
@@ -1390,6 +1443,7 @@ function openSettings(origin) {
     g.classList.toggle('collapsed', th !== 'glass'); g.toggleAttribute('inert', th !== 'glass');
   };
   markTheme();
+  $('#sndSw', el).addEventListener('click', e => { const on = !soundOn(); lsSet('lumen-sound', on ? '1' : '0'); e.currentTarget.setAttribute('aria-checked', on); if (on) buzz(14); toast(on ? 'Ton an' : 'Lautlos'); });
   $('#lensSw', el).addEventListener('click', e => { const on = lsGet('lumen-lens') === '0'; lsSet('lumen-lens', on ? '1' : '0'); e.currentTarget.setAttribute('aria-checked', on); buzz(6); lgSync(); });
   el.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { if (b.dataset.pick === getTheme()) return; buzz(10); setTheme(b.dataset.pick, getWall(), b, markTheme); }));
   el.querySelectorAll('.wallrow [data-wall]').forEach(b => b.addEventListener('click', () => { if (b.dataset.wall === getWall()) return; buzz(6); setTheme('glass', b.dataset.wall, b, markTheme); }));
@@ -1732,6 +1786,7 @@ const timerLeft = t => t.end ? Math.max(0, Math.ceil((t.end - Date.now()) / 1000
 const fmtClock = s => `${Math.floor(s / 60)}:${pad2(s % 60)}`;
 let liveEl = null, liveT = null;
 function chime() {
+  if (!soundOn()) return;
   try {
     const A = window.AudioContext || window.webkitAudioContext; if (!A) return;
     const ctx = new A(), t0 = ctx.currentTime;
@@ -1823,6 +1878,217 @@ function openTimerSheet() {
     e.preventDefault();
     data.settings.timerMin = min; const label = $('#tl', el).value;
     buzz(12); history.back(); setTimeout(() => startTimer(min, label), 300);
+  });
+}
+
+/* ---------- Sprachnotizen: Aufnahme- und Player-Insel ---------- */
+const canRec = !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
+const fmtT = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${pad2(s % 60)}`; };
+let rec = null, play = null, actT = null, recDone = Promise.resolve(); // recDone: Sichern der letzten Aufnahme (läuft nach dem Stoppen noch kurz)
+const BARS = (n, cls = '') => `<span class="bars ${cls}" aria-hidden="true">${Array.from({ length: n }, (_, k) => `<i style="--k:${k};--hh:${(.35 + .65 * Math.abs(Math.sin(k * 1.9))).toFixed(2)}"></i>`).join('')}</span>`;
+function actShow(kind) {
+  let el = $('.live.act');
+  if (!el) {
+    el = document.createElement('div'); el.className = 'live act'; el.setAttribute('role', 'button'); el.tabIndex = 0;
+    document.body.append(el); requestAnimationFrame(() => el.classList.add('in'));
+    el.addEventListener('click', actClick);
+    el.addEventListener('keydown', e => { if (e.target === el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); actOpen(!el.classList.contains('open')); } });
+  }
+  el.dataset.kind = kind; el.classList.remove('open', 'paused'); document.body.classList.remove('act-open');
+  if (kind === 'rec') el.innerHTML = `<div class="ac-c"><span class="rdot"></span>${BARS(9, 'rlv')}<span class="ac-time">0:00</span></div>
+    <div class="ac-x rec"><button type="button" class="ac-btn stop" data-a="stop" aria-label="Aufnahme beenden" tabindex="-1">${ic('stop')}</button>
+      <button type="button" class="ac-btn" data-a="pause" aria-label="Aufnahme pausieren" tabindex="-1">${ic('pause')}</button>
+      <span class="ac-info"><small>Aufnahme</small><b class="ac-time">0:00</b></span></div>`;
+  else {
+    const n = play.n, m = play.memo;
+    el.style.setProperty('--ma', `var(--${n.color})`);
+    el.innerHTML = `<div class="ac-c"><span class="cover"></span>${BARS(7, 'anim')}<span class="ac-time">0:00</span></div>
+      <div class="ac-x play">
+        <div class="ac-top"><span class="cover big">${ic('mic')}</span><span class="ac-meta"><b>${esc(noteTitle(n))}</b><small>Sprachnotiz · ${fmtDay(m.at)}</small></span>${BARS(5, 'anim')}</div>
+        <div class="ac-bar"><span class="ac-el">0:00</span><span class="ac-track" data-a="seek"><i></i></span><span class="ac-rest">-${fmtT(m.dur)}</span></div>
+        <div class="ac-ctl"><button type="button" data-a="back" aria-label="10 Sekunden zurück" tabindex="-1">${ic('back10')}</button>
+          <button type="button" class="big fill" data-a="toggle" aria-label="Pause" tabindex="-1">${ic('pause')}</button>
+          <button type="button" data-a="fwd" aria-label="10 Sekunden vor" tabindex="-1">${ic('fwd10')}</button>
+          <button type="button" data-a="close" aria-label="Wiedergabe beenden" tabindex="-1">${ic('x')}</button></div></div>`;
+  }
+  el.setAttribute('aria-label', kind === 'rec' ? 'Aufnahme läuft' : 'Sprachnotiz wird abgespielt');
+  document.body.classList.add('has-act');
+  return el;
+}
+function actOpen(open) {
+  const el = $('.live.act'); if (!el) return;
+  el.classList.toggle('open', open); document.body.classList.toggle('act-open', open);
+  el.querySelectorAll('.ac-x button').forEach(b => { b.tabIndex = open ? 0 : -1; });
+  clearTimeout(actT); if (open && el.dataset.kind === 'rec') actT = setTimeout(() => actOpen(false), 6000);
+}
+function actHide() {
+  const el = $('.live.act'); if (!el) return;
+  clearTimeout(actT); el.classList.remove('in', 'open'); el.classList.add('bye');
+  document.body.classList.remove('has-act', 'act-open');
+  setTimeout(() => el.remove(), reduced() ? 0 : 400);
+}
+function actClick(e) {
+  const b = e.target.closest('[data-a]'), el = e.currentTarget;
+  if (!b) return actOpen(!el.classList.contains('open'));
+  e.stopPropagation(); buzz(8);
+  const a = b.dataset.a;
+  if (a === 'stop') return stopRec();
+  if (a === 'pause') { recPause(); return actOpen(true); }
+  if (a === 'toggle') return togglePlay();
+  if (a === 'back') return seekPlay(-10);
+  if (a === 'fwd') return seekPlay(10);
+  if (a === 'close') return stopPlay();
+  if (a === 'seek' && play) { const r = b.getBoundingClientRect(); play.audio.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * play.memo.dur; paintPlay(); }
+}
+document.addEventListener('pointerdown', e => { const el = $('.live.act.open'); if (el && !el.contains(e.target)) actOpen(false); });
+// Aufnahme
+const recTime = () => rec ? (rec.acc + (rec.paused ? 0 : performance.now() - rec.t0)) / 1000 : 0;
+async function startRec(n, btn, onSaved) {
+  if (rec) return;
+  stopPlay();
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+  catch { return toast('Mikrofon nicht erlaubt'); }
+  const mime = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find(m => MediaRecorder.isTypeSupported?.(m)) || '';
+  let mr; try { mr = new MediaRecorder(stream, mime ? { mimeType: mime, audioBitsPerSecond: 32000 } : undefined); }
+  catch { stream.getTracks().forEach(t => t.stop()); return toast('Aufnahme nicht möglich'); }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)(), an = ctx.createAnalyser(); an.fftSize = 512;
+  ctx.createMediaStreamSource(stream).connect(an);
+  rec = { mr, stream, ctx, an, buf: new Float32Array(an.fftSize), chunks: [], levels: [], acc: 0, t0: performance.now(), paused: false, n, btn, onSaved, level: 0, last: 0 };
+  mr.ondataavailable = e => { if (e.data.size) rec?.chunks.push(e.data); };
+  mr.start(1000);
+  btn?.classList.add('on'); btn?.setAttribute('aria-label', 'Aufnahme beenden');
+  buzz(18); actShow('rec'); recTick();
+}
+function recTick() {
+  if (!rec) return;
+  rec.an.getFloatTimeDomainData(rec.buf);
+  let sum = 0; for (const v of rec.buf) sum += v * v;
+  rec.level = rec.paused ? rec.level * .8 : rec.level * .55 + Math.min(1, Math.sqrt(sum / rec.buf.length) * 5) * .45;
+  const now = performance.now();
+  if (!rec.paused && now - rec.last > 70) { rec.levels.push(rec.level); rec.last = now; }
+  const el = $('.live.act'), t = recTime();
+  if (el) {
+    el.querySelectorAll('.ac-time').forEach(x => { const v = fmtT(t); if (x.textContent !== v) x.textContent = v; });
+    el.querySelectorAll('.bars.rlv i').forEach((b, k) => { b.style.height = (4 + rec.level * 18 * (.45 + .55 * Math.abs(Math.sin(now / 160 + k * 1.3)))).toFixed(1) + 'px'; });
+  }
+  if (t >= 300) return stopRec(); // höchstens 5 Minuten pro Aufnahme
+  rec.raf = requestAnimationFrame(recTick);
+}
+function recPause() {
+  if (!rec) return; const el = $('.live.act');
+  if (rec.paused) { try { rec.mr.resume(); } catch {} rec.t0 = performance.now(); rec.paused = false; }
+  else { try { rec.mr.pause(); } catch {} rec.acc += performance.now() - rec.t0; rec.paused = true; }
+  el?.classList.toggle('paused', rec.paused);
+  const b = el?.querySelector('[data-a="pause"]'); if (b) { b.innerHTML = ic(rec.paused ? 'mic' : 'pause'); b.setAttribute('aria-label', rec.paused ? 'Aufnahme fortsetzen' : 'Aufnahme pausieren'); }
+}
+function wavePeaks(lv, n) {
+  if (!lv.length) return Array(n).fill(.12);
+  const out = [];
+  for (let i = 0; i < n; i++) { const a = Math.floor(i * lv.length / n), b = Math.max(a + 1, Math.floor((i + 1) * lv.length / n)); out.push(Math.max(...lv.slice(a, b))); }
+  const m = Math.max(...out) || 1;
+  return out.map(v => Math.max(.08, +(v / m).toFixed(2)));
+}
+function stopRec(discard) {
+  if (!rec) return Promise.resolve();
+  const r = rec; rec = null; cancelAnimationFrame(r.raf);
+  const dur = (r.acc + (r.paused ? 0 : performance.now() - r.t0)) / 1000;
+  r.btn?.classList.remove('on'); r.btn?.setAttribute('aria-label', 'Sprachnotiz aufnehmen');
+  return recDone = new Promise(res => {
+    let done = false;
+    r.mr.onstop = async () => {
+      if (done) return; done = true;
+      r.stream.getTracks().forEach(t => t.stop()); r.ctx.close().catch(() => {});
+      actHide();
+      if (discard || !data) return res();
+      if (dur < .7) { toast('Aufnahme zu kurz'); return res(); }
+      const blob = new Blob(r.chunks, { type: r.mr.mimeType || 'audio/webm' });
+      const src = await new Promise(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = () => ok(''); fr.readAsDataURL(blob); });
+      if (!src || !data) return res();
+      const memo = { id: uid(), src, dur: Math.round(dur * 10) / 10, peaks: wavePeaks(r.levels, 40), at: Date.now() }, n = r.n;
+      (n.audio ||= []).push(memo); n.updated = Date.now(); if (!data.notes.includes(n)) data.notes.push(n); save();
+      buzz([12, 50, 12]);
+      island({ icon: 'mic', color: 'red', title: `${fmtT(dur)} · Aufnahme gespeichert`, text: noteTitle(n), ms: 3200 });
+      r.onSaved?.(memo); if (!sheets.length) renderTab(); res();
+    };
+    try { if (r.mr.state !== 'inactive') r.mr.stop(); else r.mr.onstop(); } catch { r.mr.onstop(); }
+  });
+}
+// Wiedergabe
+const playPos = () => play ? Math.min(play.memo.dur, play.audio.currentTime || 0) : 0;
+function startPlay(n, m) {
+  if (rec) return toast('Erst die Aufnahme beenden');
+  if (play?.memo.id === m.id) return togglePlay();
+  stopPlay(true);
+  const audio = new Audio(m.src);
+  play = { audio, memo: m, n };
+  audio.onended = () => { if (play?.audio !== audio) return; paintPlay(); setTimeout(() => { if (play?.audio === audio && audio.paused) stopPlay(); }, 1400); };
+  audio.play().catch(() => { toast('Abspielen nicht möglich'); stopPlay(); });
+  actShow('play'); buzz(8); playTick();
+}
+function togglePlay() {
+  if (!play) return; const a = play.audio;
+  if (a.paused) { if (a.ended || playPos() >= play.memo.dur - .05) a.currentTime = 0; a.play().catch(() => {}); } else a.pause();
+  paintPlay();
+}
+function seekPlay(d) { if (!play) return; play.audio.currentTime = Math.max(0, Math.min(play.memo.dur, playPos() + d)); paintPlay(); }
+function stopPlay(keep) {
+  if (!play) return;
+  const p = play; play = null; p.audio.pause(); cancelAnimationFrame(p.raf);
+  if (!keep) actHide();
+  document.querySelectorAll('.memo').forEach(r => paintMemo(r, null));
+}
+function playTick() { if (!play) return; paintPlay(); play.raf = requestAnimationFrame(playTick); }
+function paintMemo(row, p) {
+  const on = p && row.dataset.memo === p.memo.id, k = on ? playPos() / (p.memo.dur || 1) : 0, playing = on && !p.audio.paused;
+  row.classList.toggle('playing', playing);
+  const bars = row.querySelectorAll('.mwave i'), lim = Math.round(k * bars.length);
+  bars.forEach((b, i) => b.classList.toggle('on', on && i < lim));
+  const pb = row.querySelector('.mplay'), want = playing ? 'pause' : 'play';
+  if (pb.dataset.ic !== want) { pb.dataset.ic = want; pb.innerHTML = ic(want); pb.setAttribute('aria-label', playing ? 'Pause' : 'Abspielen'); }
+  const tt = row.querySelector('.mtime'), v = on && (playing || k > 0) ? fmtT(playPos()) : fmtT(+row.dataset.dur); if (tt.textContent !== v) tt.textContent = v;
+}
+function paintPlay() {
+  const p = play; if (!p) return;
+  const el = $('.live.act[data-kind="play"]'), pos = playPos(), playing = !p.audio.paused;
+  if (el) {
+    el.classList.toggle('paused', !playing);
+    el.querySelectorAll('.bars.anim').forEach(b => b.classList.toggle('on', playing));
+    el.querySelector('.ac-c .ac-time').textContent = fmtT(pos);
+    el.querySelector('.ac-el').textContent = fmtT(pos); el.querySelector('.ac-rest').textContent = '-' + fmtT(p.memo.dur - pos);
+    el.querySelector('.ac-track').style.setProperty('--p', (pos / (p.memo.dur || 1)).toFixed(4));
+    const t = el.querySelector('[data-a="toggle"]'), want = playing ? 'pause' : 'play';
+    if (t.dataset.ic !== want) { t.dataset.ic = want; t.innerHTML = ic(want); t.setAttribute('aria-label', playing ? 'Pause' : 'Abspielen'); }
+  }
+  document.querySelectorAll('.memo').forEach(r => paintMemo(r, p));
+}
+// Sprachnotizen im Notiz-Editor
+function bindMemos(el, n) {
+  const box = $('#memos', el), btn = $('#nrec', el);
+  const render = () => {
+    if (!box.isConnected) return;
+    box.innerHTML = (n.audio || []).map(m => `<div class="memo" data-memo="${m.id}" data-dur="${m.dur}">
+      <button type="button" class="mplay" data-mplay="${m.id}" aria-label="Abspielen">${ic('play')}</button>
+      <span class="mwave" aria-hidden="true">${m.peaks.map(h => `<i style="--h:${h}"></i>`).join('')}</span>
+      <span class="mtime">${fmtT(m.dur)}</span>
+      <button type="button" class="iconbtn sm" data-mdel="${m.id}" aria-label="Sprachnotiz löschen">${ic('x')}</button></div>`).join('');
+    box.querySelectorAll('.memo').forEach(r => paintMemo(r, play));
+  };
+  render();
+  if (btn && rec?.n === n) { btn.classList.add('on'); rec.btn = btn; rec.onSaved = render; }
+  btn?.addEventListener('click', () => (rec?.n === n ? stopRec() : rec ? toast('Es läuft schon eine Aufnahme') : startRec(n, btn, render)));
+  box.addEventListener('click', e => {
+    const p = e.target.closest('[data-mplay]'), d = e.target.closest('[data-mdel]');
+    if (p) { const m = n.audio.find(x => x.id === p.dataset.mplay); if (m) startPlay(n, m); }
+    if (d) {
+      const i = n.audio.findIndex(x => x.id === d.dataset.mdel); if (i < 0) return;
+      const [m] = n.audio.splice(i, 1);
+      if (play?.memo.id === m.id) stopPlay();
+      const row = d.closest('.memo'); buzz(8);
+      const go = () => { render(); save(); };
+      if (reduced()) go(); else { row.classList.add('out'); setTimeout(go, 260); }
+      toast('Sprachnotiz gelöscht', { undo: () => { if (!n.audio.some(x => x.id === m.id)) { n.audio.splice(Math.min(i, n.audio.length), 0, m); save(); render(); if (!sheets.length) renderTab(); } } });
+    }
   });
 }
 

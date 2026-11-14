@@ -687,9 +687,9 @@ body.noteedit .fab { opacity: 0; pointer-events: none; transform: scale(.6); }
 #toast button { margin-left: 4px; }
 
 /* ---------- Live-Insel (Fokus-Timer) ---------- */
-.live { position: fixed; z-index: 40; left: 50%; top: calc(var(--st) + 10px); width: 112px; height: 38px; border-radius: 28px; background: #000; color: #fff; cursor: pointer; overflow: hidden;
+.live { position: fixed; z-index: 60; left: 50%; top: calc(var(--st) + 10px); width: 112px; height: 38px; border-radius: 28px; background: #000; color: #fff; cursor: pointer; overflow: hidden;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 0 12px 34px rgba(0, 0, 0, .7); transform: translate(-50%, -160%) scale(.5); transform-origin: 50% 0; opacity: 0; --a: var(--pink);
-  transition: width .5s cubic-bezier(.2, .9, .25, 1.06), height .5s cubic-bezier(.2, .9, .25, 1.06), transform .6s cubic-bezier(.2, .9, .25, 1.12), opacity .25s; }
+  transition: left .5s cubic-bezier(.2, .9, .25, 1.06), width .5s cubic-bezier(.2, .9, .25, 1.06), height .5s cubic-bezier(.2, .9, .25, 1.06), border-radius .5s, transform .6s cubic-bezier(.2, .9, .25, 1.12), opacity .25s; }
 .live.in { transform: translate(-50%, 0) scale(1); opacity: 1; }
 .live.bye { transform: translate(-50%, -160%) scale(.5); opacity: 0; transition: transform .36s cubic-bezier(.5, 0, .8, .4), opacity .2s .12s; }
 body.isl-busy .live { transform: translate(-50%, -30%) scale(.7); opacity: 0; pointer-events: none; }
@@ -720,7 +720,9 @@ body.isl-busy .live { transform: translate(-50%, -30%) scale(.7); opacity: 0; po
 @keyframes livePulse { 50% { box-shadow: 0 0 0 1px rgba(47, 224, 107, .5), 0 0 34px rgba(47, 224, 107, .35); } }
 /* Inhalt rückt nach unten, solange die Live-Insel da ist */
 .screen { transition: padding-top .5s var(--ease); }
-body.has-live .screen { padding-top: calc(var(--st) + 60px); }
+body.has-live .screen, body.has-act .screen { padding-top: calc(var(--st) + 60px); }
+/* Die Insel liegt auch über offenen Blättern; deren Kopfzeile rückt darunter */
+body.has-live .sheet:not(.quick), body.has-act .sheet:not(.quick) { padding-top: calc(var(--st) + 60px); transition: padding-top .5s var(--ease); }
 /* Timer einstellen */
 .sheet.timer .q-card { display: grid; gap: 14px; }
 .sheet.timer .q-top { margin-bottom: 0; }
@@ -895,3 +897,98 @@ body.has-live .screen { padding-top: calc(var(--st) + 60px); }
 /* Zahnrad bleibt oben rechts an seinem Platz und dreht sich beim Öffnen und Schließen in einer weichen Bewegung (beide Designs) */
 .sheet.morph .mgear.keep { margin: 0; pointer-events: auto; opacity: 1; z-index: 6; transition: transform .6s var(--ease); }
 .sheet.morph.in .mgear.keep { transform: rotate(180deg); opacity: 1; }
+
+/* ================= Sprachnotizen & Aktivitäts-Insel ================= */
+.live.act { width: 168px; --a: var(--red); }
+.live.act[data-kind="play"] { --a: var(--ma, var(--yellow)); }
+.live.act.open[data-kind="rec"] { width: min(calc(100vw - 28px), 360px); height: 84px; }
+.live.act.open[data-kind="play"] { width: min(calc(100vw - 28px), 360px); height: 184px; border-radius: 46px; }
+.ac-c, .ac-x { position: absolute; inset: 0; display: flex; align-items: center; transition: opacity .22s; }
+.ac-c { gap: 10px; padding: 0 14px 0 12px; }
+.ac-x { opacity: 0; pointer-events: none; }
+.live.act.open .ac-c { opacity: 0; }
+.live.act.open .ac-x { opacity: 1; pointer-events: auto; transition-delay: .16s; }
+.rdot { width: 11px; height: 11px; border-radius: 50%; flex: none; background: var(--red); box-shadow: 0 0 10px var(--red); animation: pulse 1.4s ease-in-out infinite; }
+.live.act.paused .rdot { animation: none; opacity: .45; box-shadow: none; }
+.bars { display: flex; align-items: center; justify-content: center; gap: 2.5px; height: 24px; flex: 1; min-width: 0; }
+.bars i { width: 3px; height: 4px; border-radius: 2px; flex: none; background: var(--a); }
+.bars.anim.on i { animation: bar .55s ease-in-out infinite alternate; animation-delay: calc(var(--k) * -.17s); }
+@keyframes bar { to { height: calc(5px + var(--hh) * 17px); } }
+.ac-time { font-weight: 700; font-size: .95rem; font-variant-numeric: tabular-nums; color: var(--a); }
+.cover { width: 22px; height: 22px; border-radius: 7px; flex: none; background: linear-gradient(135deg, var(--a), color-mix(in srgb, var(--a) 45%, #ff3b7f)); }
+/* Aufnahme aufgeklappt: Stopp, Pause, große Zeit */
+.ac-x.rec { gap: 10px; padding: 0 22px 0 14px; }
+.ac-btn { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; flex: none; background: #2a2a31; color: #fff; transition: transform .18s var(--ease), background-color .2s; }
+.ac-btn:active { transform: scale(.9); }
+.ac-btn.stop { background: color-mix(in srgb, var(--red) 26%, var(--mix)); color: var(--red); }
+.ac-btn.stop .ic { fill: currentColor; }
+.ac-info { margin-left: auto; min-width: 0; display: flex; align-items: baseline; gap: 10px; }
+.ac-info small { color: var(--a); font-size: .9rem; font-weight: 600; }
+.ac-info b { font-size: 2.1rem; font-weight: 300; letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--a); }
+/* Wiedergabe aufgeklappt: wie ein kleiner Musik-Player */
+.ac-x.play { flex-direction: column; align-items: stretch; justify-content: center; gap: 12px; padding: 16px 20px; }
+.ac-top { display: flex; align-items: center; gap: 12px; }
+.cover.big { width: 48px; height: 48px; border-radius: 13px; display: grid; place-items: center; color: rgba(0, 0, 0, .72); }
+.cover.big .ic { width: 22px; height: 22px; stroke-width: 2.4; }
+.ac-meta { flex: 1; min-width: 0; }
+.ac-meta b { display: block; font-size: 1.02rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ac-meta small { display: block; color: var(--t2); font-size: .8rem; margin-top: 1px; }
+.ac-top .bars { flex: none; width: 30px; }
+.ac-bar { display: flex; align-items: center; gap: 10px; font-size: .74rem; font-weight: 600; color: var(--t2); font-variant-numeric: tabular-nums; }
+.ac-track { flex: 1; height: 22px; display: flex; align-items: center; cursor: pointer; }
+.ac-track i { flex: 1; height: 5px; border-radius: 3px; background: linear-gradient(90deg, #fff calc(var(--p, 0) * 100%), rgba(255, 255, 255, .22) 0); }
+.ac-ctl { display: flex; align-items: center; justify-content: space-around; }
+.ac-ctl button { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 50%; color: #fff; transition: transform .18s var(--ease), background-color .2s; }
+.ac-ctl button:active { transform: scale(.86); background: rgba(255, 255, 255, .12); }
+.ac-ctl .ic { width: 26px; height: 26px; }
+.ac-ctl .big .ic { width: 32px; height: 32px; }
+.fill .ic { fill: currentColor; }
+.live.act.paused[data-kind="play"] .ac-c .ac-time { animation: blink 1.6s ease-in-out infinite; }
+/* Timer und Aufnahme gleichzeitig: die Insel teilt sich, der Timer wird zur kleinen Blase daneben */
+body.has-act .live:not(.act) { left: calc(50% + 112px); width: 38px; }
+body.has-act .live:not(.act) .lv-c { justify-content: center; padding: 0; }
+body.has-act .live:not(.act) .lv-c .lv-time { display: none; }
+body.has-act.has-live .live.act { left: calc(50% - 24px); }
+body.has-act .live:not(.act).open { left: 50%; width: min(calc(100vw - 28px), 360px); }
+body.has-act .live:not(.act).open .lv-c .lv-time { display: inline; }
+body.has-act .live.act.open { left: 50%; }
+body.act-open .live:not(.act), body.has-act:has(.live:not(.act).open) .live.act { opacity: 0; pointer-events: none; transform: translate(-50%, -30%) scale(.7); }
+/* Sprachnotizen in der Notiz */
+.memos { display: grid; gap: 8px; margin: 4px 0 6px; }
+.memos:empty { display: none; }
+.memo { display: flex; align-items: center; gap: 12px; padding: 8px 6px 8px 8px; border-radius: 26px; background: var(--s1); box-shadow: inset 0 0 0 1px var(--line); animation: rise .5s var(--ease) backwards;
+  transition: opacity .25s, transform .25s var(--ease); }
+.memo.out { opacity: 0; transform: scale(.94); }
+.mplay { width: 42px; height: 42px; border-radius: 50%; flex: none; display: grid; place-items: center; background: var(--a); color: #000; transition: transform .2s var(--ease); }
+.mplay:active { transform: scale(.88); }
+.mplay .ic { width: 18px; height: 18px; fill: currentColor; }
+.mwave { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; height: 32px; }
+.mwave i { width: 3px; height: calc(4px + var(--h) * 24px); border-radius: 2px; background: rgba(255, 255, 255, .28); transition: background-color .15s; }
+.mwave i.on { background: var(--a); }
+.memo.playing .mplay { box-shadow: 0 0 18px color-mix(in srgb, var(--a) 55%, transparent); }
+.mtime { min-width: 36px; text-align: right; font-size: .8rem; font-weight: 700; color: var(--t2); font-variant-numeric: tabular-nums; }
+#nrec.on { background: var(--red); color: #fff; animation: recPulse 1.4s ease-in-out infinite; }
+@keyframes recPulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--red) 22%, transparent); } }
+.nright { display: inline-flex; align-items: center; gap: 6px; }
+.nmic { display: inline-flex; align-items: center; gap: 2px; color: var(--a); font-size: .72rem; font-weight: 800; }
+.nmic .ic { width: 15px; height: 15px; }
+/* Insel mit Knöpfen (Erinnerung: Später / Erledigt) */
+.isl-tx { flex: 1; }
+.isl-act { display: flex; gap: 8px; flex: none; margin-right: -10px; }
+.isl-act button { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--a); color: #000; transition: transform .18s var(--ease); }
+.isl-act button:active { transform: scale(.86); }
+.isl-act .ic { width: 22px; height: 22px; stroke-width: 2.4; }
+/* Insel „Karte hinzugefügt“ */
+.island.cardisl { flex-direction: column; width: 216px; padding: 18px 18px 14px; border-radius: 48px; gap: 10px; }
+.isl-card { display: block; width: 168px; font-size: 8.4px; animation: gPop .6s cubic-bezier(.3, 1.4, .5, 1) .22s backwards !important; }
+.isl-card .cardflat { box-shadow: 0 10px 24px rgba(0, 0, 0, .5); }
+.isl-ok { display: grid; place-items: center; color: #fff; }
+.isl-ok .ic { width: 28px; height: 28px; stroke-width: 2.8; stroke-dasharray: 30; stroke-dashoffset: 30; animation: draw .45s .7s ease-out forwards !important; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.isl-ct { font-size: .85rem; font-weight: 700; color: var(--t2); }
+/* Lautlos: rote Kapsel wie der Stummschalter */
+#toast.sil .t-ic { width: 54px; border-radius: 999px; background: var(--red); color: #fff; }
+#toast.sil .t-tx { color: var(--red); }
+:where([data-theme="glass"]) .memo { box-shadow: var(--edge); -webkit-backdrop-filter: var(--lg, none); backdrop-filter: var(--lg, none); }
+:where([data-theme="glass"]) .ac-btn { background: rgba(255, 255, 255, .16); }
+:where([data-theme="glass"]) .mwave i { background: rgba(255, 255, 255, .34); }
