@@ -236,11 +236,9 @@ function glidePlace(box, animate) {
   g.getAnimations().forEach(a => a.cancel());
   g.animate([
     { transform: `translateX(${prev}px)` },
-    { transform: `translateX(${prev + d * .5}px) scale(${1 + k * .12}, ${1 - k * .07})`, offset: .4 },
-    { transform: `translateX(${x + Math.sign(d) * Math.min(6, Math.abs(d) * .06)}px) scale(.97, 1.04)`, offset: .78 },
+    { transform: `translateX(${prev + d * .5}px) scaleX(${1 + k * .1})`, offset: .45 },
     { transform: `translateX(${x}px)` },
-  ], { duration: 560, easing: 'cubic-bezier(.3, .8, .3, 1)' });
-  on.querySelector('.ic')?.animate([{ transform: 'scale(.72)' }, { transform: 'scale(1.18)', offset: .55 }, { transform: 'scale(1)' }], { duration: 520, easing: 'ease-out' });
+  ], { duration: 480, easing: 'cubic-bezier(.3, .8, .3, 1)' }); // nur seitlich dehnen, kein Zoomen
 }
 function glideScan(root) {
   const boxes = root.matches?.(GLIDE_SEL) ? [root] : [...(root.querySelectorAll?.(GLIDE_SEL) || [])];
@@ -346,8 +344,8 @@ function openSheet(html, { label, cls = '', onClose, origin, originIcon } = {}) 
   el.innerHTML = html;
   // Aus einem Knopf heraus aufgehen: Der Knopf wächst als Kreis zum ganzen Blatt, das Symbol dreht sich weg.
   const glass = getTheme() === 'glass';
-  if (glass && !/\bquick\b/.test(cls)) el.insertAdjacentHTML('afterbegin', '<div class="wall" aria-hidden="true"></div>'); // Glas: das Blatt bringt sein eigenes Hintergrundbild mit und schiebt sich von unten hoch
-  if (!glass && origin?.isConnected && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (glass && !/\bquick\b/.test(cls)) el.insertAdjacentHTML('afterbegin', '<div class="wall" aria-hidden="true"></div>'); // Glas: das Blatt bringt sein eigenes Hintergrundbild mit (die Glasflächen darin brechen dieses Bild)
+  if (origin?.isConnected && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     const r = origin.getBoundingClientRect(), ox = r.left + r.width / 2, oy = r.top + r.height / 2;
     const rad = Math.hypot(Math.max(ox, innerWidth - ox), Math.max(oy, innerHeight - oy)) + 12;
     el.classList.add('morph');
