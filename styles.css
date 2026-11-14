@@ -837,3 +837,48 @@ body.has-live .screen { padding-top: calc(var(--st) + 60px); }
 .wallrow b { display: block; }
 .wallrow .swatches { justify-content: space-between; gap: 8px; margin: 14px 0 0; padding: 0 2px; }
 .wallrow .swatches button { background: linear-gradient(135deg, var(--w1), var(--w2) 70%, var(--w3)); }
+
+/* ================= Glas: Bewegung ================= */
+@property --glow { syntax: "<number>"; inherits: false; initial-value: 0; }
+@keyframes gRise { from { opacity: 0; transform: translateY(18px) scale(.95); } }
+@keyframes gSlide { from { transform: translateY(54px); } }
+@keyframes gPop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+/* Gleitende Auswahl in Tab-Leiste und Umschaltern */
+.glide { display: none; }
+[data-theme="glass"] .glide { display: block; position: absolute; left: 0; top: 0; z-index: 0; border-radius: 999px; pointer-events: none; will-change: transform;
+  background: rgba(255, 255, 255, .18); box-shadow: var(--rim), 0 4px 14px rgba(0, 0, 0, .25); transition: opacity .25s, width .3s var(--ease), height .3s var(--ease), top .3s var(--ease); }
+:where([data-theme="glass"]) .seg { position: relative; }
+:where([data-theme="glass"]) nav.tabs > button, :where([data-theme="glass"]) .seg > button { position: relative; z-index: 1; }
+:where([data-theme="glass"]) nav.tabs:has(> .glide) button[aria-current="page"], :where([data-theme="glass"]) .seg:has(> .glide) button[aria-checked="true"] { background: transparent; box-shadow: none; }
+/* Licht unter dem Finger */
+:root[data-theme="glass"] .lit { background-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgb(255 255 255 / calc(var(--glow) * .3)), rgb(255 255 255 / calc(var(--glow) * .07)) 42%, transparent 72%); }
+/* Federndes Drücken: kleine Glasknöpfe schwellen an wie ein Tropfen, große Flächen geben nach */
+:where([data-theme="glass"]) .iconbtn:not(.sm), :where([data-theme="glass"]) .fab, :where([data-theme="glass"]) .addbtn, :where([data-theme="glass"]) nav.tabs button, :where([data-theme="glass"]) .dchip, :where([data-theme="glass"]) .btn, :where([data-theme="glass"]) .more, :where([data-theme="glass"]) .textbtn, :where([data-theme="glass"]) .seg button, :where([data-theme="glass"]) .lv-x button { transition: transform .55s cubic-bezier(.3, 1.7, .5, 1), background-color .25s, color .25s, box-shadow .25s, opacity .25s; }
+:where([data-theme="glass"]) .iconbtn:not(.sm):active, :where([data-theme="glass"]) .fab:active, :where([data-theme="glass"]) .addbtn:active, :where([data-theme="glass"]) nav.tabs button:active, :where([data-theme="glass"]) .lv-x button:active { transform: scale(1.14); transition-duration: .22s; }
+:where([data-theme="glass"]) .dchip:active, :where([data-theme="glass"]) .btn:active, :where([data-theme="glass"]) .more:active, :where([data-theme="glass"]) .seg button:active, :where([data-theme="glass"]) .textbtn:active { transform: scale(1.05); transition-duration: .22s; }
+:where([data-theme="glass"]) .fab[aria-expanded="true"]:active { transform: scale(1.1); }
+:where([data-theme="glass"]) .invrow, :where([data-theme="glass"]) .pinnote, :where([data-theme="glass"]) .hctile, :where([data-theme="glass"]) .themetile { transition: transform .5s cubic-bezier(.3, 1.5, .5, 1), scale .5s cubic-bezier(.3, 1.5, .5, 1), background-color .25s, box-shadow .25s; }
+:where([data-theme="glass"]) .invrow:active, :where([data-theme="glass"]) .hctile:active, :where([data-theme="glass"]) .themetile:active { transform: scale(.97); transition-duration: .2s; }
+:where([data-theme="glass"]) .notes:not(.editing) .note:active, :where([data-theme="glass"]) .pinnote:active { scale: .96; }
+:where([data-theme="glass"]) .note { transition: scale .5s cubic-bezier(.3, 1.5, .5, 1), box-shadow .25s, opacity .25s; }
+/* Schalter: der Knopf wird beim Drücken breiter und flutscht hinüber */
+:where([data-theme="glass"]) .switch::after { transition: transform .5s cubic-bezier(.3, 1.5, .5, 1), width .3s var(--ease); box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
+:where([data-theme="glass"]) .switch:active::after { width: 34px; }
+:where([data-theme="glass"]) .switch[aria-checked="true"]:active::after { transform: translateX(12px); }
+/* Einfliegen: jede Glasfläche taucht einzeln auf (eigene Durchsichtigkeit, nie die des Behälters) */
+:where([data-theme="glass"]) #screen.stag .note, :where([data-theme="glass"]) #screen.stag .cardmini, :where([data-theme="glass"]) #screen.stag .todo, :where([data-theme="glass"]) #screen.stag .invrow, :where([data-theme="glass"]) #screen.stag .search, :where([data-theme="glass"]) #screen.stag .empty, :where([data-theme="glass"]) #screen.stag .prog, :where([data-theme="glass"]) #screen.stag .pinnote, :where([data-theme="glass"]) #screen.stag .addrow, :where([data-theme="glass"]) #screen.stag .hsec { animation: gRise .6s cubic-bezier(.2, .9, .25, 1) backwards; animation-delay: calc(var(--i, 0) * 45ms); }
+:where([data-theme="glass"]) .enter .todo, :where([data-theme="glass"]) .enter .invrow, :where([data-theme="glass"]) .todo.pop, :where([data-theme="glass"]) .added li { animation-name: gRise; }
+:where([data-theme="glass"]) .enter .pinnote { animation: gRise .6s cubic-bezier(.2, .9, .25, 1) backwards; animation-delay: calc(.5s + var(--i, 0) * 70ms); }
+:where([data-theme="glass"]) .enter .hsec { animation: gRise .6s cubic-bezier(.2, .9, .25, 1) .36s backwards; }
+:where([data-theme="glass"]) .hometop .iconbtn { animation: gPop .6s cubic-bezier(.3, 1.4, .5, 1) backwards; }
+:where([data-theme="glass"]) .hometop .iconbtn:nth-child(2) { animation-delay: .06s; } :where([data-theme="glass"]) .hometop .iconbtn:nth-child(3) { animation-delay: .12s; }
+/* Blätter: der Inhalt kommt gestaffelt hinterher, als würde er nachschwingen */
+:where([data-theme="glass"]) .sheet.in:not(.quick) > :not(.wall) { animation: gSlide .7s cubic-bezier(.2, .9, .25, 1) backwards; }
+:where([data-theme="glass"]) .sheet.in:not(.quick) > :nth-child(3) { animation-delay: .03s; } :where([data-theme="glass"]) .sheet.in:not(.quick) > :nth-child(4) { animation-delay: .06s; }
+:where([data-theme="glass"]) .sheet.in:not(.quick) > :nth-child(5) { animation-delay: .09s; } :where([data-theme="glass"]) .sheet.in:not(.quick) > :nth-child(6) { animation-delay: .12s; }
+:where([data-theme="glass"]) .sheet.in:not(.quick) > :nth-child(7) { animation-delay: .15s; } :where([data-theme="glass"]) .sheet.in:not(.quick) > :nth-child(n+8) { animation-delay: .18s; }
+/* Plus-Menü: die Punkte springen als Tropfen aus dem Knopf */
+:where([data-theme="glass"]) .fabmenu.open .fm-ic { animation: gPop .55s cubic-bezier(.3, 1.4, .5, 1) backwards; animation-delay: calc(var(--i) * 50ms + .08s); }
+/* Hintergrund wandert beim Scrollen mit */
+[data-theme="glass"] body > .wall { bottom: -150px; will-change: transform; }
+@media (prefers-reduced-motion: reduce) { [data-theme="glass"] .glide { transition: none; } }

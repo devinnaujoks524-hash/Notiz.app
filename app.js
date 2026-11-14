@@ -116,7 +116,7 @@ function applyTheme(theme, wall) {
   sheets.forEach(({ el }) => {
     if (theme === 'glass' && !el.classList.contains('quick')) { el.classList.remove('morph'); el.querySelector('.mgear')?.remove(); if (!el.querySelector(':scope > .wall')) el.insertAdjacentHTML('afterbegin', '<div class="wall" aria-hidden="true"></div>'); }
   });
-  lgSync();
+  lgSync(); glassSync();
 }
 
 /* ---------- Flüssiges Glas: echte Lichtbrechung am Rand ---------- */
@@ -220,6 +220,81 @@ function lgSync() {
   lgScan(document.body);
 }
 matchMedia('(prefers-reduced-transparency: reduce), (prefers-contrast: more)').addEventListener?.('change', lgSync);
+/* ---------- Glas: Bewegung ---------- */
+// 1) Gleitende Auswahl: In Tab-Leiste und Umschaltern wandert ein Glastropfen zum gewählten Feld, dehnt sich dabei und federt nach.
+const GLIDE_SEL = 'nav.tabs, .seg';
+const glass = { on: false, mo: null, ro: null };
+function glidePlace(box, animate) {
+  const g = box.querySelector(':scope > .glide'); if (!g) return;
+  const on = box.querySelector(':scope > [aria-current="page"], :scope > [aria-checked="true"]');
+  if (!on || !on.offsetWidth) { g.style.opacity = '0'; g._x = null; return; }
+  const x = on.offsetLeft, w = on.offsetWidth, prev = g._x;
+  g.style.cssText = `opacity:1;width:${w}px;height:${on.offsetHeight}px;top:${on.offsetTop}px;transform:translateX(${x}px)`;
+  g._x = x;
+  if (!animate || prev == null || prev === x || reduced()) return;
+  const d = x - prev, k = Math.min(Math.abs(d) / w, 2.5);
+  g.getAnimations().forEach(a => a.cancel());
+  g.animate([
+    { transform: `translateX(${prev}px)` },
+    { transform: `translateX(${prev + d * .5}px) scale(${1 + k * .12}, ${1 - k * .07})`, offset: .4 },
+    { transform: `translateX(${x + Math.sign(d) * Math.min(6, Math.abs(d) * .06)}px) scale(.97, 1.04)`, offset: .78 },
+    { transform: `translateX(${x}px)` },
+  ], { duration: 560, easing: 'cubic-bezier(.3, .8, .3, 1)' });
+  on.querySelector('.ic')?.animate([{ transform: 'scale(.72)' }, { transform: 'scale(1.18)', offset: .55 }, { transform: 'scale(1)' }], { duration: 520, easing: 'ease-out' });
+}
+function glideScan(root) {
+  const boxes = root.matches?.(GLIDE_SEL) ? [root] : [...(root.querySelectorAll?.(GLIDE_SEL) || [])];
+  boxes.forEach(box => {
+    if (!box.querySelector(':scope > .glide')) box.insertAdjacentHTML('afterbegin', '<span class="glide" aria-hidden="true"></span>');
+    glass.ro.observe(box); glidePlace(box, false);
+  });
+}
+// 2) Licht unter dem Finger: Beim Drücken leuchtet das Glas dort auf, wo man es berührt, und das Leuchten folgt dem Finger.
+const GLOW_SEL = 'nav.tabs button, .fab, .iconbtn:not(.sm), .btn, .dchip, .addbtn, .note, .todo, .invrow, .pinnote, .hctile, .themetile, .fm-item, .row, .seg button, .more, .search, .addrow';
+document.addEventListener('pointerdown', e => {
+  if (!glass.on || reduced()) return;
+  const el = e.target.closest?.(GLOW_SEL); if (!el) return;
+  const at = ev => { const r = el.getBoundingClientRect(); el.style.setProperty('--mx', (ev.clientX - r.left).toFixed(0) + 'px'); el.style.setProperty('--my', (ev.clientY - r.top).toFixed(0) + 'px'); };
+  at(e); el.classList.add('lit'); // das Leuchten wird nur während der Berührung gezeichnet
+  el._glow?.cancel(); el._glow = el.animate({ '--glow': [0, 1] }, { duration: 160, easing: 'ease-out', fill: 'forwards' });
+  const off = () => {
+    removeEventListener('pointermove', at, true); removeEventListener('pointerup', off, true); removeEventListener('pointercancel', off, true);
+    el._glow?.cancel();
+    const a = el._glow = el.animate({ '--glow': [1, 0] }, { duration: 700, easing: 'ease-out', fill: 'forwards' });
+    a.finished.then(() => { if (el._glow === a) { a.cancel(); el._glow = null; el.classList.remove('lit'); } }).catch(() => {});
+  };
+  addEventListener('pointermove', at, true); addEventListener('pointerup', off, true); addEventListener('pointercancel', off, true);
+}, true);
+// 3) Der Hintergrund wandert beim Scrollen etwas langsamer mit (Tiefe)
+let wallRaf = 0;
+addEventListener('scroll', () => {
+  if (!glass.on || wallRaf || reduced()) return;
+  wallRaf = requestAnimationFrame(() => { wallRaf = 0; const w = $('body > .wall'); if (w) w.style.transform = `translate3d(0, ${-Math.min(scrollY * .12, 140).toFixed(1)}px, 0)`; });
+}, { passive: true });
+function glassSync() {
+  const want = getTheme() === 'glass';
+  if (want === glass.on) return;
+  glass.on = want;
+  if (!glass.mo) {
+    glass.ro = new ResizeObserver(es => es.forEach(({ target }) => glidePlace(target, false)));
+    glass.mo = new MutationObserver(ms => {
+      const boxes = new Set();
+      for (const m of ms) {
+        if (m.type === 'attributes') { const b = m.target.parentElement; if (b?.matches(GLIDE_SEL)) boxes.add(b); }
+        else for (const n of m.addedNodes) if (n.nodeType === 1) glideScan(n);
+      }
+      boxes.forEach(b => glidePlace(b, true));
+    });
+  }
+  if (want) {
+    glass.mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current', 'aria-checked'] });
+    glideScan(document.body);
+  } else {
+    glass.mo.disconnect(); glass.ro.disconnect();
+    document.querySelectorAll('.glide').forEach(g => g.remove());
+    const w = $('body > .wall'); if (w) w.style.transform = '';
+  }
+}
 applyTheme(getTheme(), getWall()); // beim Start: Farbe der Statusleiste an das gewählte Design angleichen
 // Wechselt das Design; das neue Aussehen wächst als Kreis aus dem angetippten Knopf
 function setTheme(theme, wall, origin, after) {
@@ -506,7 +581,7 @@ function renderTab() {
 
 function staggerScreen() {
   const s = $('#screen'); if (!s || reduced()) return;
-  s.querySelectorAll('.note, .cardmini, .todo, .invrow, .search, .empty').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
+  s.querySelectorAll('.note, .cardmini, .todo, .invrow, .search, .empty, .prog, .pinnote, .addrow, .hsec').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
   s.classList.add('stag'); setTimeout(() => s.classList.remove('stag'), 1100);
 }
 
@@ -515,6 +590,7 @@ let swapId = 0;
 function switchTab(next) {
   const screen = $('#screen');
   if (next === tab) { scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const order = TABS.map(t => t.id), dir = Math.sign(order.indexOf(next) - order.indexOf(tab)) || 1, glassy = getTheme() === 'glass';
   tab = next; buzz(6);
   document.querySelectorAll('[data-tab]').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   setMenu(false);
@@ -523,9 +599,15 @@ function switchTab(next) {
     if (id !== swapId) return;
     screen.getAnimations?.().forEach(a => a.cancel()); // Ausblend-Animation (fill: forwards) lösen, sonst bleibt der Bildschirm bei Opazität 0 hängen
     enter = true; renderTab(); scrollTo(0, 0); if (tab !== 'home') staggerScreen();
-    if (tab !== 'home' && screen.animate) screen.animate([getTheme() === 'glass' ? { transform: 'translateY(18px)' } : { opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: getTheme() === 'glass' ? 460 : 340, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    if (glassy) { if (tab === 'home') staggerScreen(); screen.animate([{ transform: `translateX(${dir * 34}px)` }, { transform: 'none' }], { duration: 560, easing: 'cubic-bezier(.2,.9,.25,1)' }); }
+    else if (tab !== 'home' && screen.animate) screen.animate([{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: 340, easing: 'cubic-bezier(.2,.8,.2,1)' });
   };
   if (!screen?.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return show();
+  if (glassy) { // die alten Glasflächen schweben einzeln weg, der Bildschirm selbst bleibt sichtbar
+    const els = [...screen.querySelectorAll('.note, .todo, .invrow, .pinnote, .cardmini, .prog, .search, .addrow, .dchip, .empty, .hsec, header.top, .hello, .hdate, .htime, .hweek, .more, .invsum, .sub')].slice(0, 30);
+    els.forEach((el, i) => el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateX(${-dir * 26}px) scale(.97)` }], { duration: 150, delay: Math.min(i, 8) * 8, easing: 'ease-in', fill: 'forwards' }));
+    return setTimeout(show, 170);
+  }
   const exit = screen.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px)' }], { duration: 120, easing: 'ease-in', fill: 'forwards' });
   exit.finished.then(show).catch(show);
 }
