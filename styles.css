@@ -20,7 +20,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; background: var(--bg); color: var(--t); }
+html, body { margin: 0; background: var(--bg); color: var(--t); overflow-x: clip; } /* nichts darf seitlich überstehen – sonst zoomt Chrome auf dem Handy kurz heraus */
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased; overscroll-behavior-y: none; min-height: 100dvh;
@@ -886,6 +886,9 @@ body.has-live .screen { padding-top: calc(var(--st) + 60px); }
 /* Einstellungen & Startseite anpassen: wie im schwarzen Design wächst das Blatt als Kreis aus dem Knopf, das Symbol dreht sich weg */
 :where([data-theme="glass"]) .sheet.morph > .wall { opacity: 1; transition: filter .6s var(--ease); }
 :where([data-theme="glass"]) .sheet.morph.in > .wall { animation: wallIn .75s cubic-bezier(.4, 0, .3, 1); }
-@keyframes wallIn { from, 30% { filter: brightness(2.2) saturate(1.4) blur(6px); } }
-:where([data-theme="glass"]) .sheet.morph:not(.in) > .wall { filter: brightness(2.2) saturate(1.4) blur(6px); } /* der wachsende Kreis leuchtet erst hell auf und wird dann zum Hintergrund */
+@keyframes wallIn { from, 30% { filter: brightness(1.7) saturate(1.3) blur(4px); } }
+:where([data-theme="glass"]) .sheet.morph:not(.in) > .wall { filter: brightness(1.7) saturate(1.3) blur(4px); } /* der wachsende Kreis leuchtet erst hell auf und wird dann zum Hintergrund */
 :where([data-theme="glass"]) .sheet.morph:not(.in) > :not(.mgear):not(.wall) { opacity: 0; }
+/* Zahnrad bzw. Regler drehen sich beim Öffnen sichtbar mit, wie im schwarzen Design – nur etwas langsamer, damit man es vor dem hellen Kreis sieht */
+:where([data-theme="glass"]) .mgear { z-index: 5; filter: drop-shadow(0 1px 4px rgba(0, 0, 0, .5)); transition: transform .7s cubic-bezier(.3, .8, .3, 1), opacity .3s .4s; }
+:where([data-theme="glass"]) .sheet.morph.in .mgear { transform: rotate(180deg) scale(.85); opacity: 0; }
