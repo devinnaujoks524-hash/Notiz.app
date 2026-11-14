@@ -350,18 +350,14 @@ function openSheet(html, { label, cls = '', onClose, origin, originIcon } = {}) 
     const rad = Math.hypot(Math.max(ox, innerWidth - ox), Math.max(oy, innerHeight - oy)) + 12;
     el.classList.add('morph');
     el.style.cssText = `--ox:${ox.toFixed(1)}px;--oy:${oy.toFixed(1)}px;--r:${rad.toFixed(1)}px;--r0:${(Math.min(r.width, r.height) / 2).toFixed(1)}px`;
-    el.insertAdjacentHTML('beforeend', `<span class="mgear" aria-hidden="true" style="left:${ox.toFixed(1)}px;top:${oy.toFixed(1)}px">${ic(originIcon || 'gear')}</span>`);
+    const close = el.querySelector('.sheet-top [data-close]');
+    if ((originIcon || 'gear') === 'gear' && close) {
+      // Zahnrad: bleibt genau an seinem Platz oben rechts, dreht sich in einer Bewegung, während das Blatt aus ihm wächst, und schließt es wieder
+      close.style.visibility = 'hidden';
+      el.insertAdjacentHTML('beforeend', `<button type="button" class="mgear keep iconbtn" data-close aria-label="Einstellungen schließen" style="left:${r.left.toFixed(1)}px;top:${r.top.toFixed(1)}px;width:${r.width.toFixed(1)}px;height:${r.height.toFixed(1)}px">${ic('gear')}</button>`);
+    } else el.insertAdjacentHTML('beforeend', `<span class="mgear" aria-hidden="true" style="left:${ox.toFixed(1)}px;top:${oy.toFixed(1)}px">${ic(originIcon || 'gear')}</span>`);
   }
   document.body.append(el);
-  // Das Symbol (Zahnrad/Regler) rollt beim Öffnen in die Ecke oben links und bleibt dort als Schließen-Knopf
-  const host = el.classList.contains('morph') && el.querySelector('.sheet-top [data-close]'), mg = el.querySelector('.mgear');
-  if (host && mg) {
-    const o = mg.getBoundingClientRect(), h = host.getBoundingClientRect();
-    mg.style.setProperty('--dx', (h.left + h.width / 2 - o.left - o.width / 2).toFixed(1) + 'px');
-    mg.style.setProperty('--dy', (h.top + h.height / 2 - o.top - o.height / 2).toFixed(1) + 'px');
-    host.innerHTML = ic(originIcon || 'gear'); host.classList.add('gearhost'); el.classList.add('keep');
-    setTimeout(() => { if (el.classList.contains('in')) el.classList.add('got'); }, 680);
-  }
   requestAnimationFrame(() => el.classList.add('in'));
   const prevFocus = document.activeElement;
   sheets.push({ el, onClose, prevFocus }); syncCover();
@@ -372,14 +368,6 @@ function openSheet(html, { label, cls = '', onClose, origin, originIcon } = {}) 
 function popSheet() {
   const s = sheets.pop(); if (!s) return;
   s.onClose?.();
-  const mg = s.el.querySelector('.mgear'), host = s.el.querySelector('.gearhost');
-  if (s.el.classList.contains('keep') && mg && host) { // Symbol rollt aus der Ecke zurück an seinen Platz
-    const o = mg.getBoundingClientRect(), h = host.getBoundingClientRect(), cur = new DOMMatrix(getComputedStyle(mg).transform);
-    const ox = o.left + o.width / 2 - cur.m41, oy = o.top + o.height / 2 - cur.m42; // Mittelpunkt ohne Verschiebung
-    mg.style.transition = 'none';
-    mg.style.setProperty('--dx', (h.left + h.width / 2 - ox).toFixed(1) + 'px'); mg.style.setProperty('--dy', (h.top + h.height / 2 - oy).toFixed(1) + 'px');
-    s.el.classList.remove('got'); void mg.offsetWidth; mg.style.transition = '';
-  }
   s.el.classList.remove('in');
   setTimeout(() => s.el.remove(), s.el.classList.contains('morph') ? 600 : getTheme() === 'glass' ? 520 : 260);
   syncCover();
