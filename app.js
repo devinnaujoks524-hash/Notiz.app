@@ -114,7 +114,7 @@ function applyTheme(theme, wall) {
   $('meta[name="theme-color"]')?.setAttribute('content', theme === 'glass' ? '#05050a' : '#000000');
   // offene Blätter an das Design anpassen (Glas: eigenes Hintergrundbild, kein Kreis-Ausschnitt – der würde die Lichtbrechung abschalten)
   sheets.forEach(({ el }) => {
-    if (theme === 'glass' && !el.classList.contains('quick')) { el.classList.remove('morph'); el.querySelector('.mgear')?.remove(); if (!el.querySelector(':scope > .wall')) el.insertAdjacentHTML('afterbegin', '<div class="wall" aria-hidden="true"></div>'); }
+    if (theme === 'glass' && !el.classList.contains('quick')) { if (!el.querySelector(':scope > .wall')) el.insertAdjacentHTML('afterbegin', '<div class="wall" aria-hidden="true"></div>'); }
   });
   lgSync(); glassSync();
 }
@@ -353,6 +353,15 @@ function openSheet(html, { label, cls = '', onClose, origin, originIcon } = {}) 
     el.insertAdjacentHTML('beforeend', `<span class="mgear" aria-hidden="true" style="left:${ox.toFixed(1)}px;top:${oy.toFixed(1)}px">${ic(originIcon || 'gear')}</span>`);
   }
   document.body.append(el);
+  // Das Symbol (Zahnrad/Regler) rollt beim Öffnen in die Ecke oben links und bleibt dort als Schließen-Knopf
+  const host = el.classList.contains('morph') && el.querySelector('.sheet-top [data-close]'), mg = el.querySelector('.mgear');
+  if (host && mg) {
+    const o = mg.getBoundingClientRect(), h = host.getBoundingClientRect();
+    mg.style.setProperty('--dx', (h.left + h.width / 2 - o.left - o.width / 2).toFixed(1) + 'px');
+    mg.style.setProperty('--dy', (h.top + h.height / 2 - o.top - o.height / 2).toFixed(1) + 'px');
+    host.innerHTML = ic(originIcon || 'gear'); host.classList.add('gearhost'); el.classList.add('keep');
+    setTimeout(() => { if (el.classList.contains('in')) el.classList.add('got'); }, 680);
+  }
   requestAnimationFrame(() => el.classList.add('in'));
   const prevFocus = document.activeElement;
   sheets.push({ el, onClose, prevFocus }); syncCover();
@@ -363,6 +372,14 @@ function openSheet(html, { label, cls = '', onClose, origin, originIcon } = {}) 
 function popSheet() {
   const s = sheets.pop(); if (!s) return;
   s.onClose?.();
+  const mg = s.el.querySelector('.mgear'), host = s.el.querySelector('.gearhost');
+  if (s.el.classList.contains('keep') && mg && host) { // Symbol rollt aus der Ecke zurück an seinen Platz
+    const o = mg.getBoundingClientRect(), h = host.getBoundingClientRect(), cur = new DOMMatrix(getComputedStyle(mg).transform);
+    const ox = o.left + o.width / 2 - cur.m41, oy = o.top + o.height / 2 - cur.m42; // Mittelpunkt ohne Verschiebung
+    mg.style.transition = 'none';
+    mg.style.setProperty('--dx', (h.left + h.width / 2 - ox).toFixed(1) + 'px'); mg.style.setProperty('--dy', (h.top + h.height / 2 - oy).toFixed(1) + 'px');
+    s.el.classList.remove('got'); void mg.offsetWidth; mg.style.transition = '';
+  }
   s.el.classList.remove('in');
   setTimeout(() => s.el.remove(), s.el.classList.contains('morph') ? 600 : getTheme() === 'glass' ? 520 : 260);
   syncCover();

@@ -892,3 +892,12 @@ body.has-live .screen { padding-top: calc(var(--st) + 60px); }
 /* Zahnrad bzw. Regler drehen sich beim Öffnen sichtbar mit, wie im schwarzen Design – nur etwas langsamer, damit man es vor dem hellen Kreis sieht */
 :where([data-theme="glass"]) .mgear { z-index: 5; filter: drop-shadow(0 1px 4px rgba(0, 0, 0, .5)); transition: transform .7s cubic-bezier(.3, .8, .3, 1), opacity .3s .4s; }
 :where([data-theme="glass"]) .sheet.morph.in .mgear { transform: rotate(180deg) scale(.85); opacity: 0; }
+/* Symbol rollt in die Ecke oben links, bleibt dort als Schließen-Knopf und rollt beim Schließen zurück (beide Designs) */
+.sheet.morph.keep .mgear { transition: transform .62s cubic-bezier(.3, .8, .3, 1); opacity: 1; }
+.sheet.morph.keep.in .mgear { transform: translate(var(--dx), var(--dy)) rotate(-220deg); opacity: 1; }
+.sheet.keep.got .mgear { visibility: hidden; }
+.sheet.keep .gearhost .ic { opacity: 0; }
+.sheet.keep.got .gearhost .ic { opacity: 1; }
+.sheet.morph.keep > .sheet-top { opacity: 1 !important; }
+.sheet.morph.keep > .sheet-top > :not(.gearhost) { opacity: 0; transition: opacity .3s .22s; }
+.sheet.morph.keep.in > .sheet-top > :not(.gearhost) { opacity: 1; }
