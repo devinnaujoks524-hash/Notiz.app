@@ -28,6 +28,9 @@ const P = {
   back: '<path d="M15 5l-7 7 7 7"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
   pause: '<path d="M8.5 5v14M15.5 5v14"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+  chev: '<path d="M9 6l6 6-6 6"/>',
+  wifi: '<path d="M8.5 8.5a5 5 0 010 7M12 6a8.5 8.5 0 010 12M15.5 3.5a12 12 0 010 17"/>',
   flame: '<path d="M12 3c.5 3.5 5.5 6 5.5 11a5.5 5.5 0 01-11 0c0-2.4 1.2-4 2.6-5.3.3 1.7 1.1 2.8 2.2 3.3C11 9.5 10.8 6 12 3z"/>',
   mic: '<rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21"/>',
   stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="2.5"/>',
@@ -715,30 +718,72 @@ function smoothPath(pts) { // Catmull-Rom als weiche Bezier-Kurve
   }
   return d;
 }
-function weekCard() {
-  const s = weekStats(), last = a => a.slice(7), prev = a => a.slice(0, 7), sum = a => a.reduce((x, y) => x + y, 0);
-  const now = sum(last(s.done)), before = sum(prev(s.done)), diff = now - before;
-  const series = [['done', 'Erledigt', 'c2', last(s.done)], ['made', 'Neue To-dos', 'c3', last(s.made)], ['notes', 'Notizen', 'c1', last(s.notes)]];
-  const max = Math.max(3, ...series.flatMap(x => x[3]));
-  const W = 600, H = 150, X = i => Math.round(i * W / 6), Y = v => +(H - 8 - v / max * (H - 30)).toFixed(1);
-  const paths = series.map(([k, , c, v], j) => ({ k, c, d: smoothPath(v.map((y, i) => [X(i), Y(y)])), w: j ? 2 : 2.6 }));
-  const wd = new Intl.DateTimeFormat('de-DE', { weekday: 'short' });
-  const lbl = s.days.slice(7).map(iso => wd.format(new Date(iso + 'T12:00:00')).replace('.', ''));
-  return `<section class="wk" aria-label="Deine Woche">
-    <div class="wk-head"><div><p class="wk-label">Erledigt · 7 Tage</p><p class="wk-kpi">${now}</p>
-      <p class="wk-delta"><span class="${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}">${diff > 0 ? '+' : ''}${diff}</span> ggü. Vorwoche</p></div>
-      <ul class="wk-legend">${series.map(([, n, c, v]) => `<li style="--c:var(--${c})"><span class="dot"></span>${n}<b>${sum(v)}</b></li>`).join('')}</ul></div>
-    <svg class="wk-chart" viewBox="0 -4 ${W} ${H * 1.55}" preserveAspectRatio="none" aria-hidden="true">
-      <defs><filter id="wkglow" x="-10%" y="-60%" width="120%" height="220%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        <linearGradient id="wkfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--c2)" stop-opacity=".22"/><stop offset="1" stop-color="var(--c2)" stop-opacity="0"/></linearGradient></defs>
-      ${[.25, .5, .75].map(f => `<line x1="0" x2="${W}" y1="${(H * f).toFixed(0)}" y2="${(H * f).toFixed(0)}" class="wk-grid"/>`).join('')}
-      <line x1="0" x2="${W}" y1="${H}" y2="${H}" class="wk-base"/>
-      <path d="${paths[0].d} L${W} ${H} L0 ${H}Z" fill="url(#wkfill)" class="wk-area"/>
-      <g class="wk-mirror" transform="translate(0 ${H * 2}) scale(1 -1)">${paths.map(p => `<path d="${p.d}"/>`).join('')}</g>
-      ${paths.slice().reverse().map((p, i) => `<path d="${p.d}" class="wk-line" pathLength="1" style="--c:var(--${p.c});--d:${i * 120}ms" stroke-width="${p.w}" filter="url(#wkglow)"/>`).join('')}
-    </svg>
-    <div class="wk-axis">${lbl.map((l, i) => `<span${i === 6 ? ' class="now"' : ''}>${esc(l)}</span>`).join('')}</div>
-  </section>`;
+// Ember-Startseite wie ein Dashboard: KPI-Karten (rechts angeschnitten), Glocken-Diagramm mit Spiegelung, Navigation und Kategorien
+function emberDash() {
+  const st = weekStats(), cur = a => a.slice(7), prev = a => a.slice(0, 7), sum = a => a.reduce((x, y) => x + y, 0);
+  const audioBy = st.days.map(iso => data.notes.reduce((n, x) => n + (x.audio || []).filter(m => isoOf(new Date(m.at)) === iso).length, 0));
+  const invBy = st.days.map(iso => (data.invoices || []).filter(i => isoOf(new Date(i.created || Date.parse(i.date))) === iso).length);
+  const cats = [['Erledigt', 'c1', st.done], ['Neue To-dos', 'c2', st.made], ['Notizen', 'c3', st.notes], ['Sprachnotizen', 'c4', audioBy], ['Rechnungen', 'c5', invBy]];
+  const now = sum(cur(st.done)), before = sum(prev(st.done));
+  const pct = before >= 3 ? Math.round((now - before) / before * 1000) / 10 : null; // bei sehr wenig Vorwoche lieber die Differenz zeigen
+  const df = now - before, delta = pct == null ? `${df > 0 ? '+' : df < 0 ? '−' : '±'}${Math.abs(df)}` : `${pct > 0 ? '+' : ''}${String(pct).replace('.', ',')} %`, up = pct == null ? df > 0 : pct > 0, down = pct == null ? df < 0 : pct < 0;
+  // KPI-Karten
+  const mon = todayIso().slice(0, 7), lastMon = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return isoOf(d).slice(0, 7); })();
+  const invs = data.invoices || [], cur0 = invs[0]?.currency || 'EUR';
+  const monSum = m => invs.filter(i => (i.date || '').startsWith(m) && i.currency === cur0).reduce((x, i) => x + (+i.gross || 0), 0);
+  const mNow = monSum(mon), mPrev = monSum(lastMon), mPct = mPrev ? Math.round((mNow - mPrev) / mPrev * 100) : null;
+  const over = invs.filter(invOverdue).length + data.todos.filter(t => !t.done && t.due && dayDiff(t.due) < 0).length;
+  const soon = invs.filter(i => i.status !== 'paid' && i.due && !invOverdue(i) && dayDiff(i.due) <= 7).length + data.todos.filter(t => !t.done && t.due && dayDiff(t.due) >= 0 && dayDiff(t.due) <= 2).length;
+  const openT = data.todos.filter(t => !t.done).length, todayT = data.todos.filter(t => !t.done && t.due && dayDiff(t.due) === 0).length;
+  const bank = data.cards.find(c => c.type === 'bank' && c.number), last4 = bank ? bank.number.replace(/\D/g, '').slice(-4) : '0000';
+  const monName = new Intl.DateTimeFormat('de-DE', { month: 'long' }).format(new Date());
+  // Glocken: pro Kategorie eine Kurve, Mitte = wann du aktiv warst, Höhe = wie viel
+  const W = 600, B = 150, M = 76, maxT = Math.max(4, ...cats.map(c => sum(cur(c[2]))));
+  const bell = v => {
+    const T = sum(v); if (!T) return { d: `M0 ${B} L${W} ${B}`, h: 0 };
+    const mu = Math.min(4.6, Math.max(1.4, v.reduce((a, y, i) => a + i * y, 0) / T)), sd = Math.min(1.9, Math.max(1.05, Math.sqrt(v.reduce((a, y, i) => a + y * (i - mu) ** 2, 0) / T)));
+    const h = T / maxT * (B - 18), pts = [];
+    for (let k = 0; k <= 60; k++) { const x = k / 10; pts.push(`${(x / 6 * W).toFixed(1)} ${(B - h * Math.exp(-((x - mu) ** 2) / (2 * sd * sd)) * Math.sin(Math.PI * x / 6) ** .7).toFixed(1)}`); }
+    return { d: 'M' + pts.join(' L'), h };
+  };
+  const curves = cats.map(([n, c, v]) => ({ n, c, t: sum(cur(v)), ...bell(cur(v)) })).sort((a, b) => b.t - a.t);
+  const tick = k => Math.round(maxT * k / 3);
+  const wd = new Intl.DateTimeFormat('de-DE', { weekday: 'short' }), lbl = st.days.slice(7).map(iso => wd.format(new Date(iso + 'T12:00:00')).replace('.', ''));
+  const count = n => n >= 1000 ? (n / 1000).toFixed(1).replace('.0', '') + 'k' : String(n);
+  const navRow = (go, icon, label, n) => `<button type="button" class="em-nav" ${go}>${ic(icon)}<span>${label}</span><b>${count(n)}</b>${ic('chev')}</button>`;
+  return [`<div class="em em-top">
+    <button type="button" class="em-search" data-act="search">${ic('search')}<span>Suchen</span><span class="kbds" aria-hidden="true"><kbd>⌘</kbd><kbd>K</kbd></span></button>
+    <div class="em-crumb">${ic('grid')}<span>Übersicht</span></div></div>`, `<div class="em">
+    <div class="em-kpis" role="list">
+      <button type="button" class="em-kpi wide" role="listitem" data-act="invlist"><p class="em-l">Rechnungen im ${esc(monName)}</p><p class="em-v">${esc(money(mNow, cur0))}</p>
+        <p class="em-d">${mPct == null ? (n => `<span>${n}</span> ${n === 1 ? 'Beleg' : 'Belege'}`)(invs.filter(i => (i.date || '').startsWith(mon)).length) : `<span class="${mPct > 0 ? 'up' : mPct < 0 ? 'down' : ''}">${mPct > 0 ? '+' : ''}${mPct} %</span> ggü. Vormonat`}</p>
+        <span class="cc-wrap" aria-hidden="true"><span class="cc back"></span><span class="cc"><i class="cc-chip"></i>${ic('wifi')}<em>•••• ${esc(last4)}</em></span></span></button>
+      <button type="button" class="em-kpi" role="listitem" data-go="todos"><p class="em-l">Überfällig</p><p class="em-v">${String(over).padStart(2, '0')}</p><p class="em-d"><span class="${soon ? 'up' : ''}">${soon}</span> bald fällig</p></button>
+      <button type="button" class="em-kpi" role="listitem" data-go="todos"><p class="em-l">Offene To-dos</p><p class="em-v">${String(openT).padStart(2, '0')}</p><p class="em-d"><span class="${todayT ? 'up' : ''}">${todayT}</span> heute</p></button>
+    </div>
+    <section class="em-chart" aria-label="Aktivität der letzten 7 Tage">
+      <p class="em-l2">Aktivität</p><p class="em-big">${now} <small>erledigt</small></p>
+      <p class="em-d"><span class="${up ? 'up' : down ? 'down' : ''}">${delta} ${up ? '↑' : down ? '↓' : ''}</span> ggü. Vorwoche</p>
+      <div class="em-plot">
+        <div class="em-y" aria-hidden="true">${[3, 2, 1, 0].map(k => `<span style="top:${(B - tick(k) / maxT * (B - 18)) / (B + M) * 100}%">${count(tick(k))}</span>`).join('')}${[1, 2, 3].map(k => `<span style="top:${(B + k / 3 * (M - 8)) / (B + M) * 100}%">${count(tick(k))}</span>`).join('')}</div>
+        <svg viewBox="0 0 ${W} ${B + M}" preserveAspectRatio="none" aria-hidden="true">
+          <defs><filter id="emglow" x="-10%" y="-60%" width="120%" height="220%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+          ${[3, 2, 1].map(k => `<line x1="0" x2="${W}" y1="${(B - tick(k) / maxT * (B - 18)).toFixed(1)}" y2="${(B - tick(k) / maxT * (B - 18)).toFixed(1)}" class="wk-grid"/>`).join('')}
+          ${[1, 2, 3].map(k => `<line x1="0" x2="${W}" y1="${(B + k / 3 * (M - 8)).toFixed(1)}" y2="${(B + k / 3 * (M - 8)).toFixed(1)}" class="wk-grid"/>`).join('')}
+          <g class="em-mirror" transform="translate(0 ${B}) scale(1 ${-(M - 8) / (B - 18)}) translate(0 ${-B})">${curves.map(c => `<path d="${c.d}"/>`).join('')}</g>
+          ${curves.map((c, i) => `<path d="${c.d}" class="wk-line" pathLength="1" style="--c:var(--${c.c});--d:${i * 110}ms" stroke-width="2.4" filter="url(#emglow)"/>`).join('')}
+        </svg>
+        <div class="em-x" aria-hidden="true" style="top:${B / (B + M) * 100}%">${lbl.map((l, i) => `<span${i === 6 ? ' class="now"' : ''}>${esc(l)}</span>`).join('')}</div>
+      </div>
+    </section>
+    <p class="em-sec">Navigation</p>
+    <div class="em-list">
+      ${navRow('data-go="notes"', 'note', 'Notizen', data.notes.length)}${navRow('data-go="todos"', 'check', 'To-dos', openT)}
+      ${navRow('data-go="cards"', 'card', 'Visualisierung', data.cards.length)}${navRow('data-act="invlist"', 'receipt', 'Rechnungen', invs.filter(i => i.status !== 'paid').length)}
+    </div>
+    <p class="em-sec">Kategorien · 7 Tage</p>
+    <ul class="em-list em-cats">${cats.map(([n, c, v]) => `<li style="--c:var(--${c})"><span class="dot"></span><span>${n}</span><b>${count(sum(cur(v)))}</b></li>`).join('')}</ul>
+  </div>`];
 }
 function viewHome() {
   const p = homeParts(), cls = enter ? ' enter' : '';
@@ -751,18 +796,19 @@ function viewHome() {
       ${open.length > shown.length ? `<button class="more" data-go="todos">${open.length - shown.length} weitere anzeigen</button>` : ''}
     </section>` : '';
   freshIds.clear();
-  const cfg = homeCfg();
+  const cfg = homeCfg(), em = getTheme() === 'ember' ? emberDash() : ['', ''];
   return `<div class="home${cls} al-${cfg.align} cs-${cfg.clockSize}">
-    <div class="hometop"><div class="hbtns">
+    <div class="hometop"><span class="em-brand" aria-hidden="true"><i></i>Lumen</span><div class="hbtns">
       <button class="iconbtn" data-act="search" aria-label="Suchen">${ic('search')}</button>
       <button class="iconbtn" data-act="customize" aria-label="Startseite anpassen">${ic('sliders')}</button>
       <button class="iconbtn" data-act="settings" aria-label="Einstellungen">${ic('gear')}</button>
       ${Vault.hasCode ? `<button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button>` : ''}</div></div>
+    ${em[0]}
     ${homeBlock(cfg, p, true)}
-    ${getTheme() === 'ember' ? weekCard() : ''}
+    ${em[1]}
     ${todos}
     ${pinsHome(cfg)}
-    ${invHome()}
+    ${getTheme() === 'ember' ? '' : invHome()}
   </div>`;
 }
 
