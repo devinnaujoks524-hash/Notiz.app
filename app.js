@@ -120,13 +120,14 @@ function confetti(x, y) {
 const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const WALLS = [['aurora', 'Aurora'], ['ocean', 'Ozean'], ['sunset', 'Abendrot'], ['forest', 'Wald'], ['graphite', 'Graphit']];
-const getTheme = () => document.documentElement.dataset.theme === 'glass' ? 'glass' : 'classic';
+const THEMES_UI = ['classic', 'glass', 'ember'];
+const getTheme = () => { const t = document.documentElement.dataset.theme; return t === 'glass' || t === 'ember' ? t : 'classic'; };
 const getWall = () => document.documentElement.dataset.wall || 'aurora';
 function applyTheme(theme, wall) {
   const r = document.documentElement;
-  if (theme === 'glass') r.dataset.theme = 'glass'; else delete r.dataset.theme;
+  if (theme === 'glass' || theme === 'ember') r.dataset.theme = theme; else delete r.dataset.theme;
   r.dataset.wall = WALLS.some(w => w[0] === wall) ? wall : 'aurora';
-  $('meta[name="theme-color"]')?.setAttribute('content', theme === 'glass' ? '#05050a' : '#000000');
+  $('meta[name="theme-color"]')?.setAttribute('content', theme === 'glass' ? '#05050a' : theme === 'ember' ? '#0a0a0b' : '#000000');
   // offene Blätter an das Design anpassen (Glas: eigenes Hintergrundbild, kein Kreis-Ausschnitt – der würde die Lichtbrechung abschalten)
   sheets.forEach(({ el }) => {
     if (theme === 'glass' && !el.classList.contains('quick')) { if (!el.querySelector(':scope > .wall')) el.insertAdjacentHTML('afterbegin', '<div class="wall" aria-hidden="true"></div>'); }
@@ -667,7 +668,7 @@ function switchTab(next) {
   exit.finished.then(show).catch(show);
 }
 
-const header = title => `<header class="top"><h1>${title}</h1><div class="hbtns">
+const header = title => `<header class="top"><h1 data-crumb="Lumen / ${title}">${title}</h1><div class="hbtns">
   <button class="iconbtn" data-act="settings" aria-label="Einstellungen">${ic('gear')}</button>
   ${Vault.hasCode ? `<button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button>` : ''}</div></header>`;
 
@@ -696,6 +697,49 @@ function tickHome() {
 }
 setInterval(tickHome, 1000);
 
+/* ---------- Ember: Wochenübersicht mit leuchtender Kurve ---------- */
+function weekStats() {
+  const days = [], dc = data.settings.dc || {};
+  for (let i = 13; i >= 0; i--) { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - i); days.push(isoOf(d)); }
+  const by = (list, f) => days.map(iso => list.filter(x => f(x) && isoOf(new Date(f(x))) === iso).length);
+  const doneT = by(data.todos, t => t.done && t.doneAt);
+  const done = days.map((iso, i) => Math.max(dc[iso] || 0, doneT[i]));
+  const made = by(data.todos, t => t.created), notes = by(data.notes, n => n.updated);
+  return { days, done, made, notes };
+}
+function smoothPath(pts) { // Catmull-Rom als weiche Bezier-Kurve
+  let d = `M${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    d += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)} ${(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1)}, ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)} ${(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1)}, ${p2[0]} ${p2[1]}`;
+  }
+  return d;
+}
+function weekCard() {
+  const s = weekStats(), last = a => a.slice(7), prev = a => a.slice(0, 7), sum = a => a.reduce((x, y) => x + y, 0);
+  const now = sum(last(s.done)), before = sum(prev(s.done)), diff = now - before;
+  const series = [['done', 'Erledigt', 'c2', last(s.done)], ['made', 'Neue To-dos', 'c3', last(s.made)], ['notes', 'Notizen', 'c1', last(s.notes)]];
+  const max = Math.max(3, ...series.flatMap(x => x[3]));
+  const W = 600, H = 150, X = i => Math.round(i * W / 6), Y = v => +(H - 8 - v / max * (H - 30)).toFixed(1);
+  const paths = series.map(([k, , c, v], j) => ({ k, c, d: smoothPath(v.map((y, i) => [X(i), Y(y)])), w: j ? 2 : 2.6 }));
+  const wd = new Intl.DateTimeFormat('de-DE', { weekday: 'short' });
+  const lbl = s.days.slice(7).map(iso => wd.format(new Date(iso + 'T12:00:00')).replace('.', ''));
+  return `<section class="wk" aria-label="Deine Woche">
+    <div class="wk-head"><div><p class="wk-label">Erledigt · 7 Tage</p><p class="wk-kpi">${now}</p>
+      <p class="wk-delta"><span class="${diff > 0 ? 'up' : diff < 0 ? 'down' : ''}">${diff > 0 ? '+' : ''}${diff}</span> ggü. Vorwoche</p></div>
+      <ul class="wk-legend">${series.map(([, n, c, v]) => `<li style="--c:var(--${c})"><span class="dot"></span>${n}<b>${sum(v)}</b></li>`).join('')}</ul></div>
+    <svg class="wk-chart" viewBox="0 -4 ${W} ${H * 1.55}" preserveAspectRatio="none" aria-hidden="true">
+      <defs><filter id="wkglow" x="-10%" y="-60%" width="120%" height="220%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <linearGradient id="wkfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--c2)" stop-opacity=".22"/><stop offset="1" stop-color="var(--c2)" stop-opacity="0"/></linearGradient></defs>
+      ${[.25, .5, .75].map(f => `<line x1="0" x2="${W}" y1="${(H * f).toFixed(0)}" y2="${(H * f).toFixed(0)}" class="wk-grid"/>`).join('')}
+      <line x1="0" x2="${W}" y1="${H}" y2="${H}" class="wk-base"/>
+      <path d="${paths[0].d} L${W} ${H} L0 ${H}Z" fill="url(#wkfill)" class="wk-area"/>
+      <g class="wk-mirror" transform="translate(0 ${H * 2}) scale(1 -1)">${paths.map(p => `<path d="${p.d}"/>`).join('')}</g>
+      ${paths.slice().reverse().map((p, i) => `<path d="${p.d}" class="wk-line" pathLength="1" style="--c:var(--${p.c});--d:${i * 120}ms" stroke-width="${p.w}" filter="url(#wkglow)"/>`).join('')}
+    </svg>
+    <div class="wk-axis">${lbl.map((l, i) => `<span${i === 6 ? ' class="now"' : ''}>${esc(l)}</span>`).join('')}</div>
+  </section>`;
+}
 function viewHome() {
   const p = homeParts(), cls = enter ? ' enter' : '';
   enter = false;
@@ -715,6 +759,7 @@ function viewHome() {
       <button class="iconbtn" data-act="settings" aria-label="Einstellungen">${ic('gear')}</button>
       ${Vault.hasCode ? `<button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button>` : ''}</div></div>
     ${homeBlock(cfg, p, true)}
+    ${getTheme() === 'ember' ? weekCard() : ''}
     ${todos}
     ${pinsHome(cfg)}
     ${invHome()}
@@ -817,7 +862,7 @@ function pinsHome(cfg) {
 }
 function viewNotes() {
   return `${header('Notizen')}
-    <label class="search">${ic('search')}<input id="q" type="search" placeholder="Durchsuchen" aria-label="Notizen durchsuchen" value="${esc(noteQ)}"></label>
+    <label class="search">${ic('search')}<input id="q" type="search" placeholder="Durchsuchen" aria-label="Notizen durchsuchen" value="${esc(noteQ)}"><span class="count" aria-hidden="true">${data.notes.length}</span></label>
     <div id="notegrid">${noteGrid()}</div>`;
 }
 function noteGrid() {
@@ -1112,6 +1157,13 @@ function streak() {
   while (days.has(isoOf(d))) { n++; d.setDate(d.getDate() - 1); }
   return n;
 }
+// Wie viele To-dos an welchem Tag erledigt wurden (bleibt auch, wenn erledigte gelöscht werden)
+function countDone(t, done) {
+  const dc = data.settings.dc ||= {}, today = todayIso();
+  if (done && !t.done) dc[today] = (dc[today] || 0) + 1;
+  else if (!done && t.done && t.doneAt && isoOf(new Date(t.doneAt)) === today) dc[today] = Math.max(0, (dc[today] || 0) - 1);
+  const keys = Object.keys(dc); if (keys.length > 60) keys.sort().slice(0, keys.length - 60).forEach(k => delete dc[k]);
+}
 function markDay() {
   const st = data.settings, today = todayIso(); st.days ||= [];
   if (st.days.includes(today)) return;
@@ -1175,7 +1227,7 @@ function bindTodoForm() {
 }
 function toggleTodo(id, btn) {
   const t = data.todos.find(x => x.id === id); if (!t) return;
-  t.done = !t.done; t.doneAt = Date.now(); if (t.done) markDay(); save();
+  countDone(t, !t.done); t.done = !t.done; t.doneAt = Date.now(); if (t.done) markDay(); save();
   buzz(t.done ? 12 : 6);
   if (t.done && !data.todos.some(x => !x.done)) { // letztes To-do abgehakt: kurz feiern
     const r = btn.getBoundingClientRect();
@@ -1320,7 +1372,7 @@ function checkTodoIsland(summary) {
         t.due = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; t.time = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
         islandNotified.delete(t.id); save(); if (!sheets.length) renderTab(); toast('Erinnerung in 15 Min.');
       } },
-      { icon: 'check', color: 'green', label: 'Erledigt', run: () => { t.done = true; t.doneAt = Date.now(); markDay(); save(); if (!sheets.length) renderTab(); toast('Erledigt'); } },
+      { icon: 'check', color: 'green', label: 'Erledigt', run: () => { countDone(t, true); t.done = true; t.doneAt = Date.now(); markDay(); save(); if (!sheets.length) renderTab(); toast('Erledigt'); } },
     ] });
   });
 }
@@ -1448,6 +1500,7 @@ function openSettings(origin) {
     <div class="themes" role="radiogroup" aria-label="Design">
       <button type="button" class="themetile" role="radio" data-pick="classic"><span class="tprev" aria-hidden="true"><i></i><i></i><i></i><b></b></span>Klassisch</button>
       <button type="button" class="themetile" role="radio" data-pick="glass"><span class="tprev glass" aria-hidden="true"><i></i><i></i><i></i><b></b></span>Glas</button>
+      <button type="button" class="themetile" role="radio" data-pick="ember"><span class="tprev ember" aria-hidden="true"><i></i><i></i><i></i><svg viewBox="0 0 100 40" preserveAspectRatio="none"><path d="M0 34 C 20 34, 26 8, 42 8 S 66 30, 100 26"/></svg><b></b></span>Ember</button>
     </div>
     <div class="group collapsible${getTheme() === 'glass' ? '' : ' collapsed'}" id="wallGroup"${getTheme() === 'glass' ? '' : ' inert'}>
       <div class="wallrow"><b>Hintergrund</b>
@@ -1923,6 +1976,8 @@ function openTimerSheet() {
   });
 }
 
+addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && data) { e.preventDefault(); if (!$('.sheet.spot')) openSpot(); } });
+
 /* ---------- Kontextmenü: To-do gedrückt halten (wie bei iOS) ---------- */
 // Die Zeile hebt sich aus dem weichgezeichneten Hintergrund, darunter klappt ein Menü auf.
 function todoMenu(id, li) {
@@ -1963,7 +2018,7 @@ function todoMenu(id, li) {
     const k = b.dataset.k;
     close(async () => {
       if (!data.todos.includes(t)) return;
-      if (k === 'done' || k === 'reopen') { t.done = k === 'done'; t.doneAt = Date.now(); if (t.done) markDay(); save(); renderTab(); return toast(t.done ? 'Erledigt' : 'Wieder offen'); }
+      if (k === 'done' || k === 'reopen') { countDone(t, k === 'done'); t.done = k === 'done'; t.doneAt = Date.now(); if (t.done) markDay(); save(); renderTab(); return toast(t.done ? 'Erledigt' : 'Wieder offen'); }
       if (k === 'today' || k === 'tmr') { t.due = k === 'today' ? todayIso() : dateIsoOffset(1); save(); renderTab(); return; }
       if (k === 'pick') return pickTodoDate(t.id);
       if (k === 'del') return removeTodo(t.id, document.querySelector(`.todo [data-toggle="${t.id}"]`)?.closest('.todo'));
@@ -1993,7 +2048,7 @@ function openSpot() {
   const el = openSheet(`
     <div class="spot-bg" data-close></div>
     <div class="spot-in">
-      <label class="spot-field">${ic('search')}<input id="sq" type="search" placeholder="Suchen in Lumen" aria-label="Suchen in Lumen" autocomplete="off" enterkeyhint="search"></label>
+      <label class="spot-field">${ic('search')}<input id="sq" type="search" placeholder="Suchen in Lumen" aria-label="Suchen in Lumen" autocomplete="off" enterkeyhint="search"><span class="kbds" aria-hidden="true"><kbd>⌘</kbd><kbd>K</kbd></span></label>
       <button type="button" class="textbtn spot-x" data-close>Abbrechen</button>
     </div>
     <div class="spot-res" id="sres" aria-live="polite"></div>`, { label: 'Suchen', cls: 'spot' });

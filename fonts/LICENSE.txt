@@ -1,0 +1,4 @@
+JetBrains Mono (latin, 400 und 500) – Copyright 2020 The JetBrains Mono Project Authors.
+Lizenz: SIL Open Font License 1.1 – https://openfontlicense.org
+Quelle: @fontsource/jetbrains-mono 5.2.5
+Lokal eingebunden, damit die App offline bleibt und keine Anfragen an fremde Server stellt.
