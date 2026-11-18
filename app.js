@@ -710,11 +710,12 @@ function weekStats() {
   const made = by(data.todos, t => t.created), notes = by(data.notes, n => n.updated);
   return { days, done, made, notes };
 }
-function smoothPath(pts) { // Catmull-Rom als weiche Bezier-Kurve
+function smoothPath(pts, floor = Infinity) { // Catmull-Rom als weiche Bezier-Kurve (floor: Kurve nie unter die Nulllinie)
+  const f = v => Math.min(floor, v).toFixed(1);
   let d = `M${pts[0][0]} ${pts[0][1]}`;
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
-    d += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)} ${(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1)}, ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)} ${(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1)}, ${p2[0]} ${p2[1]}`;
+    d += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)} ${f(p1[1] + (p2[1] - p0[1]) / 6)}, ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)} ${f(p2[1] - (p3[1] - p1[1]) / 6)}, ${p2[0]} ${p2[1]}`;
   }
   return d;
 }
@@ -738,19 +739,12 @@ function emberDash() {
   const bank = data.cards.find(c => c.type === 'bank' && c.number), last4 = bank ? bank.number.replace(/\D/g, '').slice(-4) : '0000';
   const monName = new Intl.DateTimeFormat('de-DE', { month: 'long' }).format(new Date());
   // Glocken: pro Kategorie eine Kurve, Mitte = wann du aktiv warst, Höhe = wie viel
-  const W = 600, B = 150, M = 76, maxT = Math.max(4, ...cats.map(c => sum(cur(c[2]))));
-  const bell = v => {
-    const T = sum(v); if (!T) return { d: `M0 ${B} L${W} ${B}`, h: 0 };
-    const mu = Math.min(4.6, Math.max(1.4, v.reduce((a, y, i) => a + i * y, 0) / T)), sd = Math.min(1.9, Math.max(1.05, Math.sqrt(v.reduce((a, y, i) => a + y * (i - mu) ** 2, 0) / T)));
-    const h = T / maxT * (B - 18), pts = [];
-    for (let k = 0; k <= 60; k++) { const x = k / 10; pts.push(`${(x / 6 * W).toFixed(1)} ${(B - h * Math.exp(-((x - mu) ** 2) / (2 * sd * sd)) * Math.sin(Math.PI * x / 6) ** .7).toFixed(1)}`); }
-    return { d: 'M' + pts.join(' L'), h };
-  };
+  const W = 600, B = 150, M = 76, maxT = Math.max(3, ...cats.flatMap(c => cur(c[2]))); // Skala = höchster Tageswert
+  const bell = v => ({ d: smoothPath(v.map((y, k) => [Math.round(k / 6 * W), +(B - Math.min(y, maxT) / maxT * (B - 18)).toFixed(1)]), B) }); // weiche Linie durch die echten Tageswerte
   const curves = cats.map(([n, c, v]) => ({ n, c, t: sum(cur(v)), ...bell(cur(v)) })).sort((a, b) => b.t - a.t);
   const tick = k => Math.round(maxT * k / 3);
   const wd = new Intl.DateTimeFormat('de-DE', { weekday: 'short' }), lbl = st.days.slice(7).map(iso => wd.format(new Date(iso + 'T12:00:00')).replace('.', ''));
   const count = n => n >= 1000 ? (n / 1000).toFixed(1).replace('.0', '') + 'k' : String(n);
-  const navRow = (go, icon, label, n) => `<button type="button" class="em-nav" ${go}>${ic(icon)}<span>${label}</span><b>${count(n)}</b>${ic('chev')}</button>`;
   return [`<div class="em em-top">
     <button type="button" class="em-search" data-act="search">${ic('search')}<span>Suchen</span><span class="kbds" aria-hidden="true"><kbd>⌘</kbd><kbd>K</kbd></span></button>
     <div class="em-crumb">${ic('grid')}<span>Übersicht</span></div></div>`, `<div class="em">
@@ -776,11 +770,6 @@ function emberDash() {
         <div class="em-x" aria-hidden="true" style="top:${B / (B + M) * 100}%">${lbl.map((l, i) => `<span${i === 6 ? ' class="now"' : ''}>${esc(l)}</span>`).join('')}</div>
       </div>
     </section>
-    <p class="em-sec">Navigation</p>
-    <div class="em-list">
-      ${navRow('data-go="notes"', 'note', 'Notizen', data.notes.length)}${navRow('data-go="todos"', 'check', 'To-dos', openT)}
-      ${navRow('data-go="cards"', 'card', 'Visualisierung', data.cards.length)}${navRow('data-act="invlist"', 'receipt', 'Rechnungen', invs.filter(i => i.status !== 'paid').length)}
-    </div>
     <p class="em-sec">Kategorien · 7 Tage</p>
     <ul class="em-list em-cats">${cats.map(([n, c, v]) => `<li style="--c:var(--${c})"><span class="dot"></span><span>${n}</span><b>${count(sum(cur(v)))}</b></li>`).join('')}</ul>
   </div>`];
