@@ -626,6 +626,7 @@ function renderTab() {
   const fm = $('#fabmenu'); if (fm) fm.innerHTML = menuHtml(tab);
   $('#glowwrap')?.classList.toggle('on', tab === 'home');
   screen.innerHTML = { home: viewHome, notes: viewNotes, todos: viewTodos, cards: viewCards }[tab]();
+  if (countNext) { countNext = false; countUp(screen); }
   document.querySelectorAll('[data-tab]').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   const fab = $('#fab');
   const fabCfg = { home: ['white', 'Hinzufügen'], notes: ['yellow', 'Neue Notiz'], todos: ['orange', 'Neue Aufgabe'], cards: ['violet', 'Neue Karte'] }[tab];
@@ -700,6 +701,29 @@ function tickHome() {
 }
 setInterval(tickHome, 1000);
 
+/* ---------- Zahlen zählen beim Aufbauen hoch ---------- */
+let countNext = false;
+function countUp(root, delay = 380) {
+  if (reduced()) return;
+  const els = [...root.querySelectorAll('[data-n]')]; if (!els.length) return;
+  const fmt = (el, v) => {
+    if (el.dataset.money) return money(v, el.dataset.money);
+    const n = Math.round(v), pad = +el.dataset.pad || 0;
+    return n >= 1000 ? (n / 1000).toFixed(1).replace('.0', '') + 'k' : String(n).padStart(pad, '0');
+  };
+  els.forEach((el, i) => {
+    const to = +el.dataset.n || 0, t0 = performance.now() + delay + Math.min(i, 10) * 70, dur = 900 + Math.min(to, 40) * 12;
+    el.textContent = fmt(el, 0); el.classList.add('counting');
+    const step = now => {
+      if (!el.isConnected) return;
+      const k = Math.min(1, Math.max(0, (now - t0) / dur)), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = fmt(el, el.dataset.money ? to * e : Math.floor(to * e + (k >= 1 ? 0 : 0)));
+      if (k < 1) requestAnimationFrame(step); else { el.textContent = fmt(el, to); el.classList.remove('counting'); el.animate?.([{ transform: 'scale(1.08)' }, { transform: 'none' }], { duration: 260, easing: 'ease-out' }); }
+    };
+    requestAnimationFrame(step);
+  });
+}
+
 /* ---------- Ember: Wochenübersicht mit leuchtender Kurve ---------- */
 function weekStats() {
   const days = [], dc = data.settings.dc || {};
@@ -749,17 +773,17 @@ function emberDash() {
     <button type="button" class="em-search" data-act="search">${ic('search')}<span>Suchen</span><span class="kbds" aria-hidden="true"><kbd>⌘</kbd><kbd>K</kbd></span></button>
     <div class="em-crumb">${ic('grid')}<span>Übersicht</span></div></div>`, `<div class="em">
     <div class="em-kpis" role="list">
-      <button type="button" class="em-kpi wide" role="listitem" data-act="invlist"><p class="em-l">Rechnungen im ${esc(monName)}</p><p class="em-v">${esc(money(mNow, cur0))}</p>
+      <button type="button" class="em-kpi wide" role="listitem" data-act="invlist"><p class="em-l">Rechnungen im ${esc(monName)}</p><p class="em-v" data-n="${mNow}" data-money="${esc(cur0)}">${esc(money(mNow, cur0))}</p>
         <p class="em-d">${mPct == null ? (n => `<span>${n}</span> ${n === 1 ? 'Beleg' : 'Belege'}`)(invs.filter(i => (i.date || '').startsWith(mon)).length) : `<span class="${mPct > 0 ? 'up' : mPct < 0 ? 'down' : ''}">${mPct > 0 ? '+' : ''}${mPct} %</span> ggü. Vormonat`}</p>
         <span class="cc-wrap" aria-hidden="true"><span class="cc back"></span><span class="cc"><i class="cc-chip"></i>${ic('wifi')}<em>•••• ${esc(last4)}</em></span></span></button>
-      <button type="button" class="em-kpi" role="listitem" data-go="todos"><p class="em-l">Überfällig</p><p class="em-v">${String(over).padStart(2, '0')}</p><p class="em-d"><span class="${soon ? 'up' : ''}">${soon}</span> bald fällig</p></button>
-      <button type="button" class="em-kpi" role="listitem" data-go="todos"><p class="em-l">Offene To-dos</p><p class="em-v">${String(openT).padStart(2, '0')}</p><p class="em-d"><span class="${todayT ? 'up' : ''}">${todayT}</span> heute</p></button>
+      <button type="button" class="em-kpi" role="listitem" data-go="todos"><p class="em-l">Überfällig</p><p class="em-v" data-n="${over}" data-pad="2">${String(over).padStart(2, '0')}</p><p class="em-d"><span class="${soon ? 'up' : ''}" data-n="${soon}">${soon}</span> bald fällig</p></button>
+      <button type="button" class="em-kpi" role="listitem" data-go="todos"><p class="em-l">Offene To-dos</p><p class="em-v" data-n="${openT}" data-pad="2">${String(openT).padStart(2, '0')}</p><p class="em-d"><span class="${todayT ? 'up' : ''}" data-n="${todayT}">${todayT}</span> heute</p></button>
     </div>
     <section class="em-chart" aria-label="Aktivität der letzten 7 Tage">
-      <p class="em-l2">Aktivität</p><p class="em-big">${now} <small>erledigt</small></p>
+      <p class="em-l2">Aktivität</p><p class="em-big"><span data-n="${now}">${now}</span> <small>erledigt</small></p>
       <p class="em-d"><span class="${up ? 'up' : down ? 'down' : ''}">${delta} ${up ? '↑' : down ? '↓' : ''}</span> ggü. Vorwoche</p>
       <div class="em-plot">
-        <div class="em-y" aria-hidden="true">${[3, 2, 1, 0].map(k => `<span style="top:${(B - tick(k) / maxT * (B - 18)) / (B + M) * 100}%">${count(tick(k))}</span>`).join('')}${[1, 2, 3].map(k => `<span style="top:${(B + k / 3 * (M - 8)) / (B + M) * 100}%">${count(tick(k))}</span>`).join('')}</div>
+        <div class="em-y" aria-hidden="true">${[3, 2, 1, 0].map(k => `<span style="--k:${3 - k};top:${(B - tick(k) / maxT * (B - 18)) / (B + M) * 100}%">${count(tick(k))}</span>`).join('')}${[1, 2, 3].map(k => `<span style="--k:${3 + k};top:${(B + k / 3 * (M - 8)) / (B + M) * 100}%">${count(tick(k))}</span>`).join('')}</div>
         <svg viewBox="0 0 ${W} ${B + M}" preserveAspectRatio="none" aria-hidden="true">
           <defs><filter id="emglow" x="-10%" y="-60%" width="120%" height="220%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
           ${[3, 2, 1].map(k => `<line x1="0" x2="${W}" y1="${(B - tick(k) / maxT * (B - 18)).toFixed(1)}" y2="${(B - tick(k) / maxT * (B - 18)).toFixed(1)}" class="wk-grid"/>`).join('')}
@@ -767,20 +791,21 @@ function emberDash() {
           <g class="em-mirror" transform="translate(0 ${B}) scale(1 ${-(M - 8) / (B - 18)}) translate(0 ${-B})">${curves.map(c => `<path d="${c.d}"/>`).join('')}</g>
           ${curves.map((c, i) => `<path d="${c.d}" class="wk-line" pathLength="1" style="--c:var(--${c.c});--d:${i * 110}ms" stroke-width="2.4" filter="url(#emglow)"/>`).join('')}
         </svg>
-        <div class="em-x" aria-hidden="true" style="top:${B / (B + M) * 100}%">${lbl.map((l, i) => `<span${i === 6 ? ' class="now"' : ''}>${esc(l)}</span>`).join('')}</div>
+        <div class="em-x" aria-hidden="true" style="top:${B / (B + M) * 100}%">${lbl.map((l, i) => `<span style="--k:${i}"${i === 6 ? ' class="now"' : ''}>${esc(l)}</span>`).join('')}</div>
       </div>
     </section>
     <p class="em-sec">Kategorien · 7 Tage</p>
-    <ul class="em-list em-cats">${cats.map(([n, c, v]) => `<li style="--c:var(--${c})"><span class="dot"></span><span>${n}</span><b>${count(sum(cur(v)))}</b></li>`).join('')}</ul>
+    <ul class="em-list em-cats">${cats.map(([n, c, v], i) => `<li style="--c:var(--${c});--i:${i}"><span class="dot"></span><span>${n}</span><b data-n="${sum(cur(v))}">${count(sum(cur(v)))}</b></li>`).join('')}</ul>
   </div>`];
 }
 function viewHome() {
   const p = homeParts(), cls = enter ? ' enter' : '';
+  if (enter) countNext = true; // beim ersten Aufbauen zählen die Zahlen hoch
   enter = false;
   const open = data.todos.filter(t => !t.done).sort(todoSort);
   const shown = open.slice(0, 6);
   const todos = open.length ? `<section class="htodos" id="htodos" aria-label="Offene To-dos">
-      <div class="hsec"><span>To-dos</span><b id="hcount">${open.length}</b></div>
+      <div class="hsec"><span>To-dos</span><b id="hcount" data-n="${open.length}">${open.length}</b></div>
       <ul class="todos">${shown.map(t => todoItem(t, true)).join('')}</ul>
       ${open.length > shown.length ? `<button class="more" data-go="todos">${open.length - shown.length} weitere anzeigen</button>` : ''}
     </section>` : '';
