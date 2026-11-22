@@ -51,6 +51,7 @@ const P = {
   receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
   bag: '<path d="M6 8h12l1 12H5z"/><path d="M9 8V6.5a3 3 0 016 0V8"/>',
   shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/>',
+  sparkle: '<path d="M12 2.5C13.3 7.6 16.4 10.7 21.5 12c-5.1 1.3-8.2 4.4-9.5 9.5-1.3-5.1-4.4-8.2-9.5-9.5 5.1-1.3 8.2-4.4 9.5-9.5z" fill="currentColor" stroke="none"/>',
 };
 const ic = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
 
@@ -123,14 +124,14 @@ function confetti(x, y) {
 const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const WALLS = [['aurora', 'Aurora'], ['ocean', 'Ozean'], ['sunset', 'Abendrot'], ['forest', 'Wald'], ['graphite', 'Graphit']];
-const THEMES_UI = ['classic', 'glass', 'ember'];
-const getTheme = () => { const t = document.documentElement.dataset.theme; return t === 'glass' || t === 'ember' ? t : 'classic'; };
+const THEMES_UI = ['classic', 'glass', 'ember', 'gemini'];
+const getTheme = () => { const t = document.documentElement.dataset.theme; return t === 'glass' || t === 'ember' || t === 'gemini' ? t : 'classic'; };
 const getWall = () => document.documentElement.dataset.wall || 'aurora';
 function applyTheme(theme, wall) {
   const r = document.documentElement;
-  if (theme === 'glass' || theme === 'ember') r.dataset.theme = theme; else delete r.dataset.theme;
+  if (theme === 'glass' || theme === 'ember' || theme === 'gemini') r.dataset.theme = theme; else delete r.dataset.theme;
   r.dataset.wall = WALLS.some(w => w[0] === wall) ? wall : 'aurora';
-  $('meta[name="theme-color"]')?.setAttribute('content', theme === 'glass' ? '#05050a' : theme === 'ember' ? '#0a0a0b' : '#000000');
+  $('meta[name="theme-color"]')?.setAttribute('content', theme === 'glass' ? '#05050a' : theme === 'ember' ? '#0a0a0b' : theme === 'gemini' ? '#030306' : '#000000');
   // offene Blätter an das Design anpassen (Glas: eigenes Hintergrundbild, kein Kreis-Ausschnitt – der würde die Lichtbrechung abschalten)
   sheets.forEach(({ el }) => {
     if (theme === 'glass' && !el.classList.contains('quick')) { if (!el.querySelector(':scope > .wall')) el.insertAdjacentHTML('afterbegin', '<div class="wall" aria-hidden="true"></div>'); }
@@ -281,13 +282,30 @@ function glideScan(root) {
     glass.ro.observe(box); glidePlace(box, false);
   });
 }
-// 2) Licht unter dem Finger: Beim Drücken leuchtet das Glas dort auf, wo man es berührt, und das Leuchten folgt dem Finger.
-const GLOW_SEL = 'nav.tabs button, .fab, .iconbtn:not(.sm), .btn, .dchip, .addbtn, .note, .todo, .invrow, .pinnote, .hctile, .themetile, .fm-item, .row, .seg button, .more, .search, .addrow';
+// 2) Licht unter dem Finger: Beim Drücken leuchtet Glas bzw. Gemini dort auf, wo man es berührt, und im Gemini-Design läuft eine weiche Lichtwelle aus.
+const GLOW_SEL = 'nav.tabs button, .fab, .iconbtn:not(.sm), .btn, .dchip, .addbtn, .note, .todo, .invrow, .pinnote, .hctile, .themetile, .fm-item, .row, .seg button, .more, .search, .addrow, .gm-card, .gm-qbtn, .gm-hero-btn, .gm-search';
+document.addEventListener('pointermove', e => {
+  if (getTheme() !== 'gemini' || reduced()) return;
+  const el = e.target.closest?.(GLOW_SEL); if (!el) return;
+  const r = el.getBoundingClientRect();
+  el.style.setProperty('--mx', (e.clientX - r.left).toFixed(0) + 'px');
+  el.style.setProperty('--my', (e.clientY - r.top).toFixed(0) + 'px');
+}, { passive: true });
 document.addEventListener('pointerdown', e => {
   if (!glass.on || reduced()) return;
   const el = e.target.closest?.(GLOW_SEL); if (!el) return;
   const at = ev => { const r = el.getBoundingClientRect(); el.style.setProperty('--mx', (ev.clientX - r.left).toFixed(0) + 'px'); el.style.setProperty('--my', (ev.clientY - r.top).toFixed(0) + 'px'); };
   at(e); el.classList.add('lit'); // das Leuchten wird nur während der Berührung gezeichnet
+  if (getTheme() === 'gemini') {
+    const r = el.getBoundingClientRect(), sz = Math.max(r.width, r.height) * 2.1;
+    const rip = document.createElement('span');
+    rip.className = 'gm-rip';
+    rip.style.cssText = `width:${sz.toFixed(0)}px;height:${sz.toFixed(0)}px;left:${(e.clientX - r.left).toFixed(0)}px;top:${(e.clientY - r.top).toFixed(0)}px`;
+    el.appendChild(rip);
+    const done = () => rip.remove();
+    rip.addEventListener('animationend', done, { once: true });
+    setTimeout(done, 620);
+  }
   el._glow?.cancel(); el._glow = el.animate({ '--glow': [0, 1] }, { duration: 160, easing: 'ease-out', fill: 'forwards' });
   const off = () => {
     removeEventListener('pointermove', at, true); removeEventListener('pointerup', off, true); removeEventListener('pointercancel', off, true);
@@ -300,12 +318,15 @@ document.addEventListener('pointerdown', e => {
 // 3) Der Hintergrund wandert beim Scrollen etwas langsamer mit (Tiefe)
 let wallRaf = 0;
 addEventListener('scroll', () => {
-  if (!glass.on || wallRaf || reduced()) return;
+  if (getTheme() !== 'glass' || wallRaf || reduced()) return;
   wallRaf = requestAnimationFrame(() => { wallRaf = 0; const w = $('body > .wall'); if (w) w.style.transform = `translate3d(0, ${-Math.min(scrollY * .12, 140).toFixed(1)}px, 0)`; });
 }, { passive: true });
 function glassSync() {
-  const want = getTheme() === 'glass';
-  if (want === glass.on) return;
+  const th = getTheme(), want = th === 'glass' || th === 'gemini';
+  if (want === glass.on) {
+    if (th !== 'glass') { const w = $('body > .wall'); if (w) w.style.transform = ''; }
+    return;
+  }
   glass.on = want;
   if (!glass.mo) {
     glass.ro = new ResizeObserver(es => es.forEach(({ target }) => glidePlace(target, false)));
@@ -321,6 +342,7 @@ function glassSync() {
   if (want) {
     glass.mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current', 'aria-checked'] });
     glideScan(document.body);
+    if (th !== 'glass') { const w = $('body > .wall'); if (w) w.style.transform = ''; }
   } else {
     glass.mo.disconnect(); glass.ro.disconnect();
     document.querySelectorAll('.glide').forEach(g => g.remove());
@@ -330,9 +352,10 @@ function glassSync() {
 applyTheme(getTheme(), getWall()); // beim Start: Farbe der Statusleiste an das gewählte Design angleichen
 // Wechselt das Design; das neue Aussehen wächst als Kreis aus dem angetippten Knopf
 function setTheme(theme, wall, origin, after) {
+  const changed = theme !== getTheme();
   lsSet('lumen-theme', theme); lsSet('lumen-wall', wall);
   if (data) { data.settings.theme = theme; data.settings.wall = wall; save(); }
-  const go = () => { applyTheme(theme, wall); after?.(); };
+  const go = () => { if (changed) enter = true; applyTheme(theme, wall); after?.(); };
   if (!document.startViewTransition || reduced()) return go();
   const r = origin?.getBoundingClientRect(), x = r ? r.left + r.width / 2 : innerWidth / 2, y = r ? r.top + r.height / 2 : innerHeight / 2;
   const rad = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
@@ -641,7 +664,7 @@ function renderTab() {
 
 function staggerScreen() {
   const s = $('#screen'); if (!s || reduced()) return;
-  s.querySelectorAll('.note, .cardmini, .todo, .invrow, .search, .empty, .prog, .pinnote, .addrow, .hsec').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
+  s.querySelectorAll('.note, .cardmini, .todo, .invrow, .search, .empty, .prog, .pinnote, .addrow, .hsec, .gm-card, .gm-hero, .gm-pulse, .gm-qbtn').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
   s.classList.add('stag'); setTimeout(() => s.classList.remove('stag'), 1100);
 }
 
@@ -650,7 +673,7 @@ let swapId = 0;
 function switchTab(next) {
   const screen = $('#screen');
   if (next === tab) { scrollTo({ top: 0, behavior: 'smooth' }); return; }
-  const order = TABS.map(t => t.id), dir = Math.sign(order.indexOf(next) - order.indexOf(tab)) || 1, glassy = getTheme() === 'glass';
+  const order = TABS.map(t => t.id), dir = Math.sign(order.indexOf(next) - order.indexOf(tab)) || 1, th = getTheme(), glassy = th === 'glass', gem = th === 'gemini';
   tab = next; buzz(6);
   document.querySelectorAll('[data-tab]').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   setMenu(false);
@@ -660,6 +683,7 @@ function switchTab(next) {
     screen.getAnimations?.().forEach(a => a.cancel()); // Ausblend-Animation (fill: forwards) lösen, sonst bleibt der Bildschirm bei Opazität 0 hängen
     enter = true; renderTab(); scrollTo(0, 0); if (tab !== 'home') staggerScreen();
     if (glassy) { if (tab === 'home') staggerScreen(); screen.animate([{ transform: `translateX(${dir * 34}px)` }, { transform: 'none' }], { duration: 560, easing: 'cubic-bezier(.2,.9,.25,1)' }); }
+    else if (gem) screen.animate([{ opacity: 0, transform: `translateX(${dir * 22}px) scale(.985)` }, { opacity: 1, transform: 'none' }], { duration: 380, easing: 'cubic-bezier(.22,1,.36,1)' });
     else if (tab !== 'home' && screen.animate) screen.animate([{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: 340, easing: 'cubic-bezier(.2,.8,.2,1)' });
   };
   if (!screen?.animate || matchMedia('(prefers-reduced-motion: reduce)').matches) return show();
@@ -668,7 +692,7 @@ function switchTab(next) {
     els.forEach((el, i) => el.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateX(${-dir * 26}px) scale(.97)` }], { duration: 150, delay: Math.min(i, 8) * 8, easing: 'ease-in', fill: 'forwards' }));
     return setTimeout(show, 170);
   }
-  const exit = screen.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px)' }], { duration: 120, easing: 'ease-in', fill: 'forwards' });
+  const exit = screen.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: gem ? `translateX(${-dir * 16}px) scale(.99)` : 'translateY(-6px)' }], { duration: gem ? 130 : 120, easing: 'ease-in', fill: 'forwards' });
   exit.finished.then(show).catch(show);
 }
 
@@ -798,6 +822,155 @@ function emberDash() {
     <ul class="em-list em-cats">${cats.map(([n, c, v], i) => `<li style="--c:var(--${c});--i:${i}"><span class="dot"></span><span>${n}</span><b data-n="${sum(cur(v))}">${count(sum(cur(v)))}</b></li>`).join('')}</ul>
   </div>`];
 }
+
+/* ---------- Gemini: Obsidian-Prism Command Center ---------- */
+function geminiDash() {
+  const st = weekStats(), sum = a => a.reduce((x, y) => x + y, 0);
+  const days7 = st.done.slice(7), prev7 = st.done.slice(0, 7);
+  const sum7 = sum(days7), prevSum = sum(prev7), df = sum7 - prevSum;
+  const max7 = Math.max(1, ...days7);
+  const wd = new Intl.DateTimeFormat('de-DE', { weekday: 'short' });
+  const lbl = st.days.slice(7).map(iso => wd.format(new Date(iso + 'T12:00:00')).replace('.', ''));
+
+  const dayStr = new Date().toDateString();
+  const openList = data.todos.filter(t => !t.done);
+  const doneToday = data.todos.filter(t => t.done && t.doneAt && new Date(t.doneAt).toDateString() === dayStr).length;
+  const totalToday = doneToday + openList.length;
+  const pct = totalToday ? Math.round(doneToday / totalToday * 100) : 0;
+  const dueToday = openList.filter(t => t.due && dayDiff(t.due) === 0).length;
+  const overTodos = openList.filter(t => t.due && dayDiff(t.due) < 0).length;
+  const strk = streak();
+
+  const notesCount = data.notes.length;
+  const audioCount = data.notes.reduce((n, x) => n + (x.audio?.length || 0), 0);
+  const noteDots = (data.notes.length ? data.notes.slice(0, 4).map(n => n.color || 'yellow') : ['blue', 'violet', 'pink']);
+
+  const cardsCount = data.cards.length;
+  const topCards = data.cards.slice(0, 2);
+  const c1 = THEMES[topCards[0]?.theme] || ['#38bdf8', '#818cf8'];
+  const c2 = THEMES[topCards[1]?.theme] || ['#a855f7', '#f472b6'];
+
+  const invs = data.invoices || [], cur0 = invs[0]?.currency || 'EUR';
+  const mon = todayIso().slice(0, 7);
+  const mNow = invs.filter(i => (i.date || '').startsWith(mon) && i.currency === cur0).reduce((x, i) => x + (+i.gross || 0), 0);
+  const openInvs = invs.filter(i => i.status !== 'paid').length;
+  const monShort = new Intl.DateTimeFormat('de-DE', { month: 'short' }).format(new Date()).replace('.', '');
+
+  const statusTitle = !totalToday ? 'Alles klar für heute' : pct === 100 ? 'Tagesziel erreicht' : doneToday ? 'Stark im Rhythmus' : `${openList.length} ${openList.length === 1 ? 'Aufgabe' : 'Aufgaben'} offen`;
+  const statusSub = !totalToday
+    ? 'Halte eine Idee fest oder starte einen Fokus-Timer.'
+    : pct === 100
+      ? `${doneToday} von ${totalToday} heute abgeschlossen.`
+      : `${doneToday} erledigt · ${dueToday ? `${dueToday} heute fällig` : overTodos ? `${overTodos} überfällig` : `${openList.length} offen`}`;
+
+  const deltaTxt = df > 0 ? `+${df}` : df < 0 ? `−${Math.abs(df)}` : '±0';
+  const deltaCls = df > 0 ? 'up' : df < 0 ? 'down' : '';
+
+  const top = `<div class="gm gm-top">
+    <button type="button" class="gm-search" data-act="search">
+      <span class="gm-s-ic">${ic('sparkle')}</span>
+      <span>Suchen in Notizen, To-dos, Karten …</span>
+      <span class="gm-kbds" aria-hidden="true"><kbd>⌘</kbd><kbd>K</kbd></span>
+    </button>
+  </div>`;
+
+  const body = `<div class="gm gm-dash">
+    <section class="gm-hero" aria-label="Tagesfokus">
+      <div class="gm-hero-aura" aria-hidden="true"></div>
+      <div class="gm-orbit" style="--p:${pct}" aria-hidden="true">
+        <svg viewBox="0 0 100 100">
+          <defs>
+            <linearGradient id="gmGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#38bdf8"/>
+              <stop offset="50%" stop-color="#818cf8"/>
+              <stop offset="100%" stop-color="#f472b6"/>
+            </linearGradient>
+          </defs>
+          <circle class="gm-ring-bg" cx="50" cy="50" r="40"/>
+          <circle class="gm-ring-glow" cx="50" cy="50" r="40" pathLength="100"/>
+          <circle class="gm-ring-fg" cx="50" cy="50" r="40" pathLength="100"/>
+        </svg>
+        <div class="gm-orbit-val">
+          <b><span data-n="${pct}">${pct}</span><small>%</small></b>
+          <span>Fokus</span>
+        </div>
+      </div>
+      <div class="gm-hero-info">
+        <div class="gm-hero-head">
+          <span class="gm-tag">${ic('sparkle')}<span>Tagespuls</span></span>
+          ${strk > 0 ? `<span class="gm-streak" title="Erledigt-Serie">${ic('flame')}<span data-n="${strk}">${strk}</span></span>` : ''}
+        </div>
+        <h2 class="gm-hero-title">${esc(statusTitle)}</h2>
+        <p class="gm-hero-sub">${esc(statusSub)}</p>
+        <div class="gm-hero-acts">
+          <button type="button" class="gm-hero-btn primary" data-add="timer">${ic('clock')}<span>Fokus-Timer</span></button>
+          <button type="button" class="gm-hero-btn" data-new="note">${ic('plus')}<span>Notiz</span></button>
+        </div>
+      </div>
+    </section>
+
+    <div class="gm-ribbon" role="list" aria-label="Schnellaktionen">
+      <button type="button" class="gm-qbtn" role="listitem" data-add="note" style="--qa:#facc15">${ic('note')}<span>Notiz</span></button>
+      <button type="button" class="gm-qbtn" role="listitem" data-add="todo" style="--qa:#fb923c">${ic('check')}<span>To-do</span></button>
+      <button type="button" class="gm-qbtn" role="listitem" data-add="invoice" style="--qa:#34d399">${ic('receipt')}<span>Beleg</span></button>
+      <button type="button" class="gm-qbtn" role="listitem" data-add="card" style="--qa:#a78bfa">${ic('card')}<span>3D-Karte</span></button>
+      <button type="button" class="gm-qbtn" role="listitem" data-add="timer" style="--qa:#38bdf8">${ic('clock')}<span>Timer</span></button>
+    </div>
+
+    <div class="gm-bento" role="list" aria-label="Bereiche im Überblick">
+      <button type="button" class="gm-card" role="listitem" data-go="notes" style="--gc:#60a5fa;--i:0">
+        <span class="gm-c-top"><span class="gm-c-ic">${ic('note')}</span><span class="gm-dots" aria-hidden="true">${noteDots.map(c => `<i style="--dc:var(--${c})"></i>`).join('')}</span></span>
+        <b class="gm-c-val" data-n="${notesCount}">${notesCount}</b>
+        <span class="gm-c-lbl">Notizen</span>
+        <span class="gm-c-meta">${audioCount ? `${audioCount} Sprachnotiz${audioCount === 1 ? '' : 'en'}` : 'Lokal verschlüsselt'}</span>
+      </button>
+
+      <button type="button" class="gm-card" role="listitem" data-go="todos" style="--gc:#c084fc;--i:1">
+        <span class="gm-c-top"><span class="gm-c-ic">${ic('check')}</span>${overTodos ? `<span class="gm-badge warn">${overTodos} spät</span>` : dueToday ? `<span class="gm-badge">${dueToday} heute</span>` : `<span class="gm-badge ok">Klar</span>`}</span>
+        <b class="gm-c-val" data-n="${openList.length}">${openList.length}</b>
+        <span class="gm-c-lbl">Offene To-dos</span>
+        <span class="gm-c-meta">${doneToday ? `${doneToday} heute erledigt` : 'Alles griffbereit'}</span>
+      </button>
+
+      <button type="button" class="gm-card" role="listitem" data-go="cards" style="--gc:#38bdf8;--i:2">
+        <span class="gm-c-top"><span class="gm-c-ic">${ic('card')}</span><span class="gm-mini-stack" aria-hidden="true"><i style="--ca:${c2[0]};--cb:${c2[1]}"></i><i style="--ca:${c1[0]};--cb:${c1[1]}"></i></span></span>
+        <b class="gm-c-val" data-n="${cardsCount}">${cardsCount}</b>
+        <span class="gm-c-lbl">3D-Karten</span>
+        <span class="gm-c-meta">Tippen zum Drehen</span>
+      </button>
+
+      <button type="button" class="gm-card" role="listitem" data-act="invlist" style="--gc:#34d399;--i:3">
+        <span class="gm-c-top"><span class="gm-c-ic">${ic('receipt')}</span><span class="gm-badge${openInvs ? ' warn' : ' ok'}">${openInvs} offen</span></span>
+        <b class="gm-c-val money" data-n="${mNow}" data-money="${esc(cur0)}">${esc(money(mNow, cur0))}</b>
+        <span class="gm-c-lbl">Belege · ${esc(monShort)}</span>
+        <span class="gm-c-meta">${invs.length} ${invs.length === 1 ? 'Beleg' : 'Belege'} gesamt</span>
+      </button>
+    </div>
+
+    <section class="gm-pulse" aria-label="7-Tage-Rhythmus">
+      <div class="gm-pulse-head">
+        <div>
+          <span class="gm-pulse-k">7-Tage-Rhythmus</span>
+          <p class="gm-pulse-v"><b data-n="${sum7}">${sum7}</b><span>erledigt</span></p>
+        </div>
+        <span class="gm-delta ${deltaCls}">${deltaTxt} ggü. Vorwoche</span>
+      </div>
+      <div class="gm-bars" aria-hidden="true">
+        ${days7.map((v, i) => {
+          const h = v > 0 ? Math.max(18, Math.round(v / max7 * 100)) : 8;
+          return `<div class="gm-bar-col${i === 6 ? ' now' : ''}${v > 0 ? ' has' : ''}" style="--h:${h}%;--k:${i}">
+            <span class="gm-bar-n">${v || ''}</span>
+            <div class="gm-bar-track"><span class="gm-bar-fill"></span></div>
+            <span class="gm-bar-d">${esc(lbl[i])}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </section>
+  </div>`;
+
+  return [top, body];
+}
+
 function viewHome() {
   const p = homeParts(), cls = enter ? ' enter' : '';
   if (enter) countNext = true; // beim ersten Aufbauen zählen die Zahlen hoch
@@ -810,19 +983,20 @@ function viewHome() {
       ${open.length > shown.length ? `<button class="more" data-go="todos">${open.length - shown.length} weitere anzeigen</button>` : ''}
     </section>` : '';
   freshIds.clear();
-  const cfg = homeCfg(), em = getTheme() === 'ember' ? emberDash() : ['', ''];
+  const th = getTheme();
+  const cfg = homeCfg(), em = th === 'ember' ? emberDash() : ['', ''], gm = th === 'gemini' ? geminiDash() : ['', ''];
   return `<div class="home${cls} al-${cfg.align} cs-${cfg.clockSize}">
-    <div class="hometop"><span class="em-brand" aria-hidden="true"><i></i>Lumen</span><div class="hbtns">
+    <div class="hometop"><span class="em-brand" aria-hidden="true"><i></i>Lumen</span><span class="gm-brand" aria-hidden="true">${ic('sparkle')}<span>Lumen</span><em>Gemini</em></span><div class="hbtns">
       <button class="iconbtn" data-act="search" aria-label="Suchen">${ic('search')}</button>
       <button class="iconbtn" data-act="customize" aria-label="Startseite anpassen">${ic('sliders')}</button>
       <button class="iconbtn" data-act="settings" aria-label="Einstellungen">${ic('gear')}</button>
       ${Vault.hasCode ? `<button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button>` : ''}</div></div>
-    ${em[0]}
+    ${em[0]}${gm[0]}
     ${homeBlock(cfg, p, true)}
-    ${em[1]}
+    ${em[1]}${gm[1]}
     ${todos}
     ${pinsHome(cfg)}
-    ${getTheme() === 'ember' ? '' : invHome()}
+    ${th === 'ember' ? '' : invHome()}
   </div>`;
 }
 
@@ -1561,6 +1735,7 @@ function openSettings(origin) {
       <button type="button" class="themetile" role="radio" data-pick="classic"><span class="tprev" aria-hidden="true"><i></i><i></i><i></i><b></b></span>Klassisch</button>
       <button type="button" class="themetile" role="radio" data-pick="glass"><span class="tprev glass" aria-hidden="true"><i></i><i></i><i></i><b></b></span>Glas</button>
       <button type="button" class="themetile" role="radio" data-pick="ember"><span class="tprev ember" aria-hidden="true"><i></i><i></i><i></i><svg viewBox="0 0 100 40" preserveAspectRatio="none"><path d="M0 34 C 20 34, 26 8, 42 8 S 66 30, 100 26"/></svg><b></b></span>Ember</button>
+      <button type="button" class="themetile" role="radio" data-pick="gemini"><span class="tprev gemini" aria-hidden="true"><svg class="gm-tp-star" viewBox="0 0 24 24"><path d="M12 2.5C13.3 7.6 16.4 10.7 21.5 12c-5.1 1.3-8.2 4.4-9.5 9.5-1.3-5.1-4.4-8.2-9.5-9.5 5.1-1.3 8.2-4.4 9.5-9.5z"/></svg><i></i><i></i><svg class="gm-tp-ring" viewBox="0 0 36 36"><circle class="bg" cx="18" cy="18" r="13"/><circle class="fg" cx="18" cy="18" r="13" pathLength="100"/></svg><b></b></span>Gemini</button>
     </div>
     <div class="group collapsible${getTheme() === 'glass' ? '' : ' collapsed'}" id="wallGroup"${getTheme() === 'glass' ? '' : ' inert'}>
       <div class="wallrow"><b>Hintergrund</b>

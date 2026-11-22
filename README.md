@@ -10,7 +10,7 @@ Private Notizen, To-dos und 3D-Karten – komplett schwarz, knallige Farben, ver
 - **Schnellaktionen** am App-Symbol und **Teilen nach Lumen** aus anderen Apps
 - **Rechnungen** mit Foto, Steuer (DE, AT, CH, USA u. a. oder eigene), Netto/Brutto-Rechnung und Status
 - **Visualisierung:** Bank-, Kundenkarten und E-Mail-Konten (als Umschlag) schweben als 3D-Modell (ziehen = drehen, tippen = umdrehen)
-- **Drei Designs:** Klassisch (schwarz), Glas (mit Lichtbrechung) oder Ember (Dark-Dashboard-Stil mit Wochen-Kurve) – umschaltbar in den Einstellungen
+- **Vier Designs:** Klassisch (schwarz), Glas (mit Lichtbrechung), Ember (Dark-Dashboard-Stil mit Wochen-Kurve) oder Gemini (Obsidian-Prisma mit Tagesfokus-Ring & 7-Tage-Puls) – umschaltbar in den Einstellungen
 - **Sperre** mit Code, optional Fingerabdruck
 - **Offline** – funktioniert ohne Internet
 - **Backup** als verschlüsselte Datei (Export/Import)
