@@ -2434,7 +2434,7 @@ body.act-open .live:not(.act), body.has-act:has(.live:not(.act).open) .live.act 
 .br-pulse-line.act { opacity: .95; stroke-width: 3; animation-duration: 2.1s; }
 @keyframes brFlow { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
 
-/* Das ständig drehende Lumen-Zentralgehirn in der Mitte */
+/* Das ständig drehende Lumen-Logo als Zentralgehirn in der Mitte */
 .br-core {
   position: absolute;
   left: 0;
@@ -2452,60 +2452,29 @@ body.act-open .live:not(.act), body.has-act:has(.live:not(.act).open) .live.act 
 .br-core:active { transform: translate(-50%, -50%) scale(.92); }
 .br-core-aura {
   position: absolute;
-  inset: -24px;
+  inset: -14px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(166, 107, 255, .34) 0%, rgba(61, 139, 255, .14) 46%, transparent 72%);
-  animation: brAuraPulse 4.5s ease-in-out infinite;
+  background: conic-gradient(from 195deg, #ffc426 0%, #ff5a36 16%, #ff2d78 34%, #b53dff 54%, #2b8aff 74%, #ffc426 100%);
+  filter: blur(22px);
+  opacity: .68;
+  animation: brSpin 8s linear infinite, brAuraPulse 4.5s ease-in-out infinite;
   pointer-events: none;
 }
-:where([data-theme="gemini"]) .br-core-aura {
-  background: radial-gradient(circle, color-mix(in srgb, var(--gp2) 38%, transparent) 0%, color-mix(in srgb, var(--gp1) 16%, transparent) 46%, transparent 72%);
-}
-@keyframes brAuraPulse { 0%, 100% { transform: scale(.96); opacity: .78; } 50% { transform: scale(1.12); opacity: 1; } }
+@keyframes brAuraPulse { 0%, 100% { opacity: .58; } 50% { opacity: .82; } }
 
-.br-core-orbit {
-  position: absolute;
-  inset: -11px;
-  border-radius: 50%;
-  border: 1px dashed rgba(255, 255, 255, .24);
-  animation: brSpinRev 24s linear infinite;
-  pointer-events: none;
-}
 .br-core-orb {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, #ffb21f, #ff3b7f, #a66bff, #3d8bff, #2fe06b, #ffb21f);
-  box-shadow: 0 0 38px rgba(166, 107, 255, .45), inset 0 0 0 2px rgba(255, 255, 255, .35);
-  animation: brSpin 9s linear infinite;
-  -webkit-mask: radial-gradient(circle, transparent 52%, #000 54%);
-  mask: radial-gradient(circle, transparent 52%, #000 54%);
-}
-:where([data-theme="gemini"]) .br-core-orb {
-  background: conic-gradient(from 0deg, var(--gp1), var(--gp2), var(--gp3), var(--gp4), var(--gp1));
-  box-shadow: 0 0 42px color-mix(in srgb, var(--gp2) 52%, transparent), inset 0 0 0 2px rgba(255, 255, 255, .4);
-}
-.br-core-star {
   position: relative;
   z-index: 2;
-  width: 44px;
-  height: 44px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #1c1e2e, #050508);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .2), 0 4px 16px rgba(0, 0, 0, .65);
-  display: grid;
-  place-items: center;
-  color: #ffffff;
-}
-.br-core-star .ic {
-  width: 22px;
-  height: 22px;
-  filter: drop-shadow(0 0 10px rgba(255, 255, 255, .85));
-  animation: brSpin 14s linear infinite;
+  background: conic-gradient(from 195deg, #ffc426 0%, #ff5a36 16%, #ff2d78 34%, #b53dff 54%, #2b8aff 74%, #ffc426 100%);
+  box-shadow: 0 0 28px rgba(255, 45, 120, .35), 0 0 46px rgba(140, 77, 255, .28);
+  animation: brSpin 8s linear infinite;
 }
 .br-core-lbl {
   position: absolute;
-  top: calc(100% + 10px);
+  top: calc(100% + 12px);
   left: 50%;
   transform: translateX(-50%);
   font-family: var(--mono, ui-monospace, monospace);
@@ -2513,12 +2482,11 @@ body.act-open .live:not(.act), body.has-act:has(.live:not(.act).open) .live.act 
   font-weight: 600;
   letter-spacing: .12em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, .72);
+  color: rgba(255, 255, 255, .74);
   white-space: nowrap;
   text-shadow: 0 2px 10px #000;
 }
 @keyframes brSpin { to { transform: rotate(360deg); } }
-@keyframes brSpinRev { to { transform: rotate(-360deg); } }
 
 /* Themen- & Abschnitt-Knoten */
 .br-nodes { position: absolute; left: 0; top: 0; }
@@ -2715,5 +2683,5 @@ body.act-open .live:not(.act), body.has-act:has(.live:not(.act).open) .live.act 
 .br-crumb span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 @media (prefers-reduced-motion: reduce) {
-  .br-core-orb, .br-core-orbit, .br-core-star .ic, .br-core-aura, .br-pulse-line { animation: none !important; }
+  .br-core-orb, .br-core-aura, .br-pulse-line { animation: none !important; }
 }

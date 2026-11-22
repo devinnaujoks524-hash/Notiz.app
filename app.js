@@ -1737,9 +1737,7 @@ function viewBrain() {
         <svg class="br-svg" id="brSvg" viewBox="-1200 -1200 2400 2400" aria-hidden="true"></svg>
         <button type="button" class="br-core" id="brCore" aria-label="Lumen Zentrale zentrieren">
           <span class="br-core-aura" aria-hidden="true"></span>
-          <span class="br-core-orbit" aria-hidden="true"></span>
           <span class="br-core-orb" aria-hidden="true"></span>
-          <span class="br-core-star" aria-hidden="true">${ic('sparkle')}</span>
           <span class="br-core-lbl">Lumen</span>
         </button>
         <div class="br-nodes" id="brNodes"></div>
