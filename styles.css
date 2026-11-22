@@ -1333,7 +1333,11 @@ body.act-open .live:not(.act), body.has-act:has(.live:not(.act).open) .live.act 
   --blue: #38bdf8;
   --green: #34d399;
   --red: #fb7185;
-  --gm-prism: linear-gradient(135deg, #38bdf8 0%, #818cf8 48%, #c084fc 78%, #f472b6 100%);
+  --gp1: #38bdf8;
+  --gp2: #818cf8;
+  --gp3: #c084fc;
+  --gp4: #f472b6;
+  --gm-prism: linear-gradient(135deg, var(--gp1) 0%, var(--gp2) 48%, var(--gp3) 78%, var(--gp4) 100%);
   --gm-rim: inset 0 0 0 1px var(--line), inset 0 1px 0 rgba(255, 255, 255, .065);
   --gm-rim2: inset 0 0 0 1px var(--line2), inset 0 1px 0 rgba(255, 255, 255, .11);
   --gm-spring: cubic-bezier(.34, 1.56, .64, 1);
@@ -1341,6 +1345,30 @@ body.act-open .live:not(.act), body.has-act:has(.live:not(.act).open) .live.act 
   --ease: cubic-bezier(.22, 1, .36, 1);
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   color-scheme: dark;
+}
+:root[data-theme="gemini"][data-prism="noir"] {
+  --bg: #000000;
+  --s1: #0a0a0c;
+  --s2: #131317;
+  --s3: #1d1d24;
+  --line: rgba(255, 255, 255, .08);
+  --line2: rgba(255, 255, 255, .16);
+  --gp1: #ffffff;
+  --gp2: #d4d4dc;
+  --gp3: #a1a1aa;
+  --gp4: #e4e4e7;
+}
+:root[data-theme="gemini"][data-prism="aurora"] {
+  --gp1: #34d399;
+  --gp2: #22d3ee;
+  --gp3: #38bdf8;
+  --gp4: #818cf8;
+}
+:root[data-theme="gemini"][data-prism="solar"] {
+  --gp1: #fde047;
+  --gp2: #fb923c;
+  --gp3: #fb7185;
+  --gp4: #f472b6;
 }
 
 /* Tiefschwarzer Raum mit hauchfeinem, atmendem Sternenlicht-Prisma */
@@ -1356,9 +1384,9 @@ body.act-open .live:not(.act), body.has-act:has(.live:not(.act).open) .live.act 
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(620px 320px at 14% -6%, rgba(56, 189, 248, .085), transparent 68%),
-    radial-gradient(540px 320px at 88% 8%, rgba(167, 139, 250, .08), transparent 68%),
-    radial-gradient(520px 280px at 50% 106%, rgba(244, 114, 182, .05), transparent 72%);
+    radial-gradient(620px 320px at 14% -6%, color-mix(in srgb, var(--gp1) 9%, transparent), transparent 68%),
+    radial-gradient(540px 320px at 88% 8%, color-mix(in srgb, var(--gp3) 8%, transparent), transparent 68%),
+    radial-gradient(520px 280px at 50% 106%, color-mix(in srgb, var(--gp4) 5%, transparent), transparent 72%);
   animation: gmAmbient 14s ease-in-out infinite alternate;
 }
 @keyframes gmAmbient {
@@ -2040,3 +2068,223 @@ body.act-open .live:not(.act), body.has-act:has(.live:not(.act).open) .live.act 
   [data-theme="gemini"] .glide { transition: none; }
   [data-theme="gemini"] .gm-rip { display: none; }
 }
+
+
+/* ================= Lumen 1.2 Features: Prismen, Checklisten & Tags, Heatmap & Wiederholung, Wallet-Stapel & Barcode, Fokus-Klang ================= */
+
+/* 1) Gemini Farbspektren-Synchronisation & Einstellungen-Swatches */
+.prismrow .swatches { justify-content: flex-start; gap: 14px; }
+.prismrow .swatches button[data-prism="polar"] { background: linear-gradient(135deg, #38bdf8, #818cf8 52%, #f472b6); }
+.prismrow .swatches button[data-prism="noir"] { background: linear-gradient(135deg, #ffffff, #71717a 58%, #09090b); }
+.prismrow .swatches button[data-prism="aurora"] { background: linear-gradient(135deg, #34d399, #22d3ee 55%, #818cf8); }
+.prismrow .swatches button[data-prism="solar"] { background: linear-gradient(135deg, #fde047, #fb923c 55%, #fb7185); }
+.prism-cap { display: block; margin-top: 10px; font-size: .78rem; color: var(--t3); font-family: var(--mono, ui-monospace, monospace); }
+
+[data-theme="gemini"] .glide {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--gp1) 24%, transparent), color-mix(in srgb, var(--gp2) 22%, transparent) 55%, color-mix(in srgb, var(--gp4) 18%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gp2) 44%, transparent), inset 0 1px 0 rgba(255, 255, 255, .18), 0 4px 18px color-mix(in srgb, var(--gp1) 22%, transparent);
+}
+:where([data-theme="gemini"]) .gm-brand .ic { color: var(--gp1); filter: drop-shadow(0 0 10px color-mix(in srgb, var(--gp1) 70%, transparent)); }
+:where([data-theme="gemini"]) .gm-brand em { color: var(--gp1); background: color-mix(in srgb, var(--gp2) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gp2) 34%, transparent); }
+:where([data-theme="gemini"]) .gm-s-ic { color: var(--gp2); }
+:where([data-theme="gemini"]) .gm-tag { color: var(--gp1); background: color-mix(in srgb, var(--gp2) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gp2) 30%, transparent); }
+:where([data-theme="gemini"]) .gm-tag .ic { color: var(--gp1); }
+:where([data-theme="gemini"]) .gm-hero {
+  background:
+    radial-gradient(240px circle at 12% 18%, color-mix(in srgb, var(--gp1) 13%, transparent), transparent 64%),
+    radial-gradient(220px circle at 92% 86%, color-mix(in srgb, var(--gp3) 12%, transparent), transparent 64%),
+    var(--s1);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gp2) 26%, transparent), inset 0 1px 0 rgba(255, 255, 255, .1), 0 18px 44px rgba(0, 0, 0, .58);
+}
+:where([data-theme="gemini"]) .gm-hero-aura {
+  background: conic-gradient(from 0deg, transparent 0 65%, color-mix(in srgb, var(--gp1) 16%, transparent) 76%, color-mix(in srgb, var(--gp3) 16%, transparent) 86%, color-mix(in srgb, var(--gp4) 12%, transparent) 94%, transparent 100%);
+}
+:where([data-theme="gemini"]) .gm-bar-col.has .gm-bar-fill {
+  background: linear-gradient(180deg, var(--gp1), var(--gp2) 60%, var(--gp3));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--gp2) 38%, transparent);
+}
+:where([data-theme="gemini"]) .gm-bar-col.now .gm-bar-fill {
+  background: linear-gradient(180deg, var(--gp1), var(--gp2) 50%, var(--gp4));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--gp1) 55%, transparent);
+}
+:where([data-theme="gemini"]) .gm-bar-col.now .gm-bar-n { color: var(--gp1); }
+:where([data-theme="gemini"]) .fab {
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, var(--gp2) 52%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, .25),
+    0 12px 32px rgba(0, 0, 0, .75),
+    0 0 26px color-mix(in srgb, var(--gp2) 28%, transparent);
+}
+:where([data-theme="gemini"]) .pring .fg { stroke: var(--gp2); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--gp2) 55%, transparent)); }
+
+/* 2) Notizen: #Tags-Filterleiste, Quick-Insert & Live-Checklisten */
+.ntags { display: flex; gap: 7px; overflow-x: auto; margin: -2px 0 14px; padding: 2px 0; scrollbar-width: none; }
+.ntags::-webkit-scrollbar { display: none; }
+.ntags .dchip { flex: none; }
+.nfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 6px; width: 100%; }
+.nfoot small { margin-top: 0 !important; }
+.ncard-tags { display: inline-flex; flex-wrap: wrap; gap: 4px; min-width: 0; overflow: hidden; }
+.ncard-tags em {
+  font-style: normal;
+  font-size: .68rem;
+  font-weight: 600;
+  color: var(--t2);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .07);
+  white-space: nowrap;
+}
+.nchk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: .7rem;
+  font-weight: 700;
+  color: var(--t2);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .08);
+  font-variant-numeric: tabular-nums;
+}
+.nchk-pill .ic { width: 12px; height: 12px; }
+.nchk-pill.all { color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent); }
+
+.nquick { display: flex; gap: 7px; flex-wrap: wrap; margin: 10px 0 8px; }
+.nquick .dchip { height: 32px; padding: 0 11px; font-size: .78rem; }
+.nquick .dchip .ic { width: 14px; height: 14px; }
+
+.nchecks:empty { display: none; }
+.nchecks {
+  margin: 4px 0 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--s1);
+  box-shadow: inset 0 0 0 1px var(--line);
+  animation: rise .35s var(--ease);
+}
+.nchk-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: .74rem;
+  font-weight: 700;
+  color: var(--t2);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 8px;
+}
+.nchk-head b { font-variant-numeric: tabular-nums; color: var(--a, var(--t)); }
+.nchk-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.nchk-row { display: flex; align-items: center; gap: 10px; font-size: .94rem; transition: opacity .2s; }
+.nchk-row .chk { width: 28px; height: 28px; }
+.nchk-row .chk svg { width: 22px; height: 22px; }
+.nchk-row.done span { color: var(--t3); text-decoration: line-through; }
+
+/* 3) To-dos: Wiederholung & 28-Tage-Heatmap */
+.tmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tmeta:empty { display: none; }
+.trep {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 6px;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 14%, var(--mix));
+}
+.trep .ic { width: 12px; height: 12px; }
+:where([data-theme="gemini"]) .trep { color: var(--gp1); background: color-mix(in srgb, var(--gp1) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gp1) 28%, transparent); }
+
+.heat {
+  margin: 12px 0 4px;
+  padding: 14px 16px 15px;
+  border-radius: 20px;
+  background: var(--s1);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+:where([data-theme="gemini"]) .heat { box-shadow: var(--gm-rim), 0 10px 26px rgba(0, 0, 0, .42); }
+.heat-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; font-size: .76rem; color: var(--t2); }
+.heat-top span { font-weight: 600; }
+.heat-top b { font-family: var(--mono, ui-monospace, monospace); font-weight: 500; font-size: .72rem; color: var(--t3); font-variant-numeric: tabular-nums; }
+.heat-grid { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: 5px; }
+.heat-grid i {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .055);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+  transition: transform 220ms var(--ease);
+}
+.heat-grid i.l1 { background: color-mix(in srgb, var(--green) 26%, var(--s1)); }
+.heat-grid i.l2 { background: color-mix(in srgb, var(--green) 48%, var(--s1)); }
+.heat-grid i.l3 { background: color-mix(in srgb, var(--green) 74%, var(--s1)); box-shadow: 0 0 8px color-mix(in srgb, var(--green) 30%, transparent); }
+.heat-grid i.l4 { background: var(--green); box-shadow: 0 0 10px color-mix(in srgb, var(--green) 48%, transparent); }
+.heat-grid i.now { box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .7); }
+:where([data-theme="gemini"]) .heat-grid i.l1 { background: color-mix(in srgb, var(--gp2) 26%, var(--s1)); }
+:where([data-theme="gemini"]) .heat-grid i.l2 { background: color-mix(in srgb, var(--gp2) 50%, var(--s1)); }
+:where([data-theme="gemini"]) .heat-grid i.l3 { background: color-mix(in srgb, var(--gp1) 76%, var(--s1)); box-shadow: 0 0 9px color-mix(in srgb, var(--gp1) 35%, transparent); }
+:where([data-theme="gemini"]) .heat-grid i.l4 { background: var(--gm-prism); box-shadow: 0 0 12px color-mix(in srgb, var(--gp2) 55%, transparent); }
+
+/* 4) Visualisierung: Apple-Wallet-Stapel & Code-128 Barcode auf 3D-Kundenkarten */
+.cview-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.cview-bar .sub.left { margin-bottom: 0; font-size: .86rem; }
+.seg.sm { flex: none; padding: 3px; width: auto; }
+.seg.sm button { height: 32px; padding: 0 12px; font-size: .78rem; }
+
+.cwallet {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0 32px;
+  perspective: 900px;
+}
+.cwallet .cardmini {
+  position: relative;
+  width: 100%;
+  margin-top: -108px;
+  transform-origin: center top;
+  z-index: calc(1 + var(--ci, 0));
+  transition: transform 360ms cubic-bezier(.22, 1, .36, 1), filter 260ms, box-shadow 260ms;
+}
+.cwallet .cardmini:first-child { margin-top: 0; }
+.cwallet .cardmini .cardflat {
+  box-shadow: 0 -10px 28px rgba(0, 0, 0, .58), 0 16px 36px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .28);
+}
+.cwallet .cardmini:hover,
+.cwallet .cardmini:focus-visible { transform: translateY(-22px) scale(1.015); z-index: 20; }
+.cwallet .cardmini:active { transform: translateY(-10px) scale(.985); }
+
+/* 3D Kundenkarten-Rückseite mit echtem Barcode */
+.memberback {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 20px 22px 20px;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--a) 22%, #14151c), #090a0e);
+}
+.cb-mhead { display: flex; align-items: center; justify-content: space-between; font-size: .76rem; font-weight: 700; color: rgba(255, 255, 255, .82); letter-spacing: .04em; }
+.cb-mhead small { font-family: var(--mono, ui-monospace, monospace); font-size: .64rem; padding: 2px 7px; border-radius: 999px; background: rgba(255, 255, 255, .12); color: #fff; }
+.cb-code {
+  background: #ffffff;
+  color: #09090b;
+  border-radius: 12px;
+  padding: 12px 12px 8px;
+  display: grid;
+  gap: 5px;
+  justify-items: center;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .45);
+}
+.cb-code svg { width: 100%; height: 48px; display: block; fill: #09090b; }
+.cb-code span { font-family: var(--mono, ui-monospace, monospace); font-size: .72rem; font-weight: 600; letter-spacing: .16em; color: #18181b; }
+.cb-mnote { margin: 0; font-size: .72rem; color: rgba(255, 255, 255, .7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 5) Fokus-Timer Ambient Soundscape UI */
+.tsnd-wrap { display: grid; gap: 8px; margin: 2px 0 4px; }
+.tsnd-lbl { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; color: var(--t2); }
+.tsnd-lbl .ic { width: 15px; height: 15px; color: var(--blue); }
+:where([data-theme="gemini"]) .tsnd-lbl .ic { color: var(--gp1); }
+.tsnds { margin: 0 !important; }
+.lv-x .lv-snd { background: rgba(255, 255, 255, .1); color: var(--t2); }
+.lv-x .lv-snd.on { background: color-mix(in srgb, var(--blue) 28%, var(--mix)); color: var(--blue); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 45%, transparent); }
+:where([data-theme="gemini"]) .lv-x .lv-snd.on { background: color-mix(in srgb, var(--gp1) 24%, transparent); color: var(--gp1); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gp1) 48%, transparent); }

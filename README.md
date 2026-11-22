@@ -4,13 +4,14 @@ Private Notizen, To-dos und 3D-Karten – komplett schwarz, knallige Farben, ver
 
 ## Funktionen
 
-- **Notizen** mit Farben, Anheften, Suche und **Sprachnotizen** (Aufnahme und Wiedergabe als Insel oben)
-- **To-dos** zum Abhaken, Wischen, Gedrückthalten (Kontextmenü) und mit Erledigt-Serie
+- **Notizen** mit Farben, Anheften, `#Tags`, interaktiven Checklisten (`[ ]`), Suche und **Sprachnotizen** (Aufnahme und Wiedergabe als Insel oben)
+- **To-dos** zum Abhaken, Wischen, Gedrückthalten (Kontextmenü), **Wiederholung** (täglich/wöchentlich/monatlich), Erledigt-Serie & 28-Tage-Heatmap
+- **Fokus-Timer** als schwebende Insel mit optionalem Offline-Ambient-Sound (Regen, Rauschen, Klang)
 - **Suche über alles** (Lupe oder auf der Startseite nach unten ziehen)
 - **Schnellaktionen** am App-Symbol und **Teilen nach Lumen** aus anderen Apps
 - **Rechnungen** mit Foto, Steuer (DE, AT, CH, USA u. a. oder eigene), Netto/Brutto-Rechnung und Status
-- **Visualisierung:** Bank-, Kundenkarten und E-Mail-Konten (als Umschlag) schweben als 3D-Modell (ziehen = drehen, tippen = umdrehen)
-- **Vier Designs:** Klassisch (schwarz), Glas (mit Lichtbrechung), Ember (Dark-Dashboard-Stil mit Wochen-Kurve) oder Gemini (Obsidian-Prisma mit Tagesfokus-Ring & 7-Tage-Puls) – umschaltbar in den Einstellungen
+- **Visualisierung:** Bank-, Kundenkarten (mit scanbarem Code-128-Barcode auf der Rückseite) und E-Mail-Konten als **Wallet-Stapel** oder Raster & schwebendes 3D-Modell (ziehen = drehen, tippen = umdrehen)
+- **Vier Designs:** Klassisch (schwarz), Glas (mit Lichtbrechung), Ember (Dark-Dashboard-Stil mit Wochen-Kurve) oder Gemini (Obsidian-Prisma mit 4 Farbspektren, Tagesfokus-Ring & 7-Tage-Puls) – umschaltbar in den Einstellungen
 - **Sperre** mit Code, optional Fingerabdruck
 - **Offline** – funktioniert ohne Internet
 - **Backup** als verschlüsselte Datei (Export/Import)

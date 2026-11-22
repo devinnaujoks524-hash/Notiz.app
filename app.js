@@ -52,6 +52,11 @@ const P = {
   bag: '<path d="M6 8h12l1 12H5z"/><path d="M9 8V6.5a3 3 0 016 0V8"/>',
   shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/>',
   sparkle: '<path d="M12 2.5C13.3 7.6 16.4 10.7 21.5 12c-5.1 1.3-8.2 4.4-9.5 9.5-1.3-5.1-4.4-8.2-9.5-9.5 5.1-1.3 8.2-4.4 9.5-9.5z" fill="currentColor" stroke="none"/>',
+  repeat: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/>',
+  waves: '<path d="M2 12c2-3 4-3 6 0s4 3 6 0 4-3 6 0"/><path d="M2 17c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0"/><path d="M2 7c2-2.5 4-2.5 6 0s4 2.5 6 0 4-2.5 6 0"/>',
+  layers: '<path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M3 12l9 4.5 9-4.5"/><path d="M3 16.5L12 21l9-4.5"/>',
+  tag: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><circle cx="7" cy="7" r="1.2" fill="currentColor"/>',
+  listcheck: '<path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9"/>',
 };
 const ic = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
 
@@ -124,13 +129,17 @@ function confetti(x, y) {
 const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const WALLS = [['aurora', 'Aurora'], ['ocean', 'Ozean'], ['sunset', 'Abendrot'], ['forest', 'Wald'], ['graphite', 'Graphit']];
+const PRISMS = [['polar', 'Polar'], ['noir', 'Noir'], ['aurora', 'Aurora'], ['solar', 'Solar']];
 const THEMES_UI = ['classic', 'glass', 'ember', 'gemini'];
 const getTheme = () => { const t = document.documentElement.dataset.theme; return t === 'glass' || t === 'ember' || t === 'gemini' ? t : 'classic'; };
 const getWall = () => document.documentElement.dataset.wall || 'aurora';
-function applyTheme(theme, wall) {
+const getPrism = () => document.documentElement.dataset.prism || 'polar';
+function applyTheme(theme, wall, prism) {
   const r = document.documentElement;
   if (theme === 'glass' || theme === 'ember' || theme === 'gemini') r.dataset.theme = theme; else delete r.dataset.theme;
   r.dataset.wall = WALLS.some(w => w[0] === wall) ? wall : 'aurora';
+  const p = prism ?? getPrism();
+  r.dataset.prism = PRISMS.some(x => x[0] === p) ? p : 'polar';
   $('meta[name="theme-color"]')?.setAttribute('content', theme === 'glass' ? '#05050a' : theme === 'ember' ? '#0a0a0b' : theme === 'gemini' ? '#030306' : '#000000');
   // offene Blätter an das Design anpassen (Glas: eigenes Hintergrundbild, kein Kreis-Ausschnitt – der würde die Lichtbrechung abschalten)
   sheets.forEach(({ el }) => {
@@ -349,13 +358,13 @@ function glassSync() {
     const w = $('body > .wall'); if (w) w.style.transform = '';
   }
 }
-applyTheme(getTheme(), getWall()); // beim Start: Farbe der Statusleiste an das gewählte Design angleichen
+applyTheme(getTheme(), getWall(), getPrism()); // beim Start: Farbe der Statusleiste an das gewählte Design angleichen
 // Wechselt das Design; das neue Aussehen wächst als Kreis aus dem angetippten Knopf
-function setTheme(theme, wall, origin, after) {
-  const changed = theme !== getTheme();
-  lsSet('lumen-theme', theme); lsSet('lumen-wall', wall);
-  if (data) { data.settings.theme = theme; data.settings.wall = wall; save(); }
-  const go = () => { if (changed) enter = true; applyTheme(theme, wall); after?.(); };
+function setTheme(theme, wall, origin, after, prism) {
+  const changed = theme !== getTheme(), pr = prism ?? getPrism();
+  lsSet('lumen-theme', theme); lsSet('lumen-wall', wall); lsSet('lumen-prism', pr);
+  if (data) { data.settings.theme = theme; data.settings.wall = wall; data.settings.prism = pr; save(); }
+  const go = () => { if (changed) enter = true; applyTheme(theme, wall, pr); after?.(); };
   if (!document.startViewTransition || reduced()) return go();
   const r = origin?.getBoundingClientRect(), x = r ? r.left + r.width / 2 : innerWidth / 2, y = r ? r.top + r.height / 2 : innerHeight / 2;
   const rad = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
@@ -628,7 +637,7 @@ function renderMain() {
     </div>
     <button class="fab" id="fab" aria-label="Hinzufügen">${ic('plus')}</button>`;
   // Design aus den (verschlüsselten) Einstellungen übernehmen, z. B. nach einem Backup-Import auf einem neuen Gerät
-  if (!lsGet('lumen-theme') && data.settings.theme) { applyTheme(data.settings.theme, data.settings.wall); lsSet('lumen-theme', getTheme()); lsSet('lumen-wall', getWall()); }
+  if (!lsGet('lumen-theme') && data.settings.theme) { applyTheme(data.settings.theme, data.settings.wall, data.settings.prism); lsSet('lumen-theme', getTheme()); lsSet('lumen-wall', getWall()); lsSet('lumen-prism', getPrism()); }
   enter = true;
   renderTab();
   if (pending) setTimeout(runPending, 450);
@@ -664,7 +673,7 @@ function renderTab() {
 
 function staggerScreen() {
   const s = $('#screen'); if (!s || reduced()) return;
-  s.querySelectorAll('.note, .cardmini, .todo, .invrow, .search, .empty, .prog, .pinnote, .addrow, .hsec, .gm-card, .gm-hero, .gm-pulse, .gm-qbtn').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
+  s.querySelectorAll('.note, .cardmini, .todo, .invrow, .search, .empty, .prog, .heat, .pinnote, .addrow, .hsec, .gm-card, .gm-hero, .gm-pulse, .gm-qbtn').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
   s.classList.add('stag'); setTimeout(() => s.classList.remove('stag'), 1100);
 }
 
@@ -881,9 +890,9 @@ function geminiDash() {
         <svg viewBox="0 0 100 100">
           <defs>
             <linearGradient id="gmGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#38bdf8"/>
-              <stop offset="50%" stop-color="#818cf8"/>
-              <stop offset="100%" stop-color="#f472b6"/>
+              <stop offset="0%" style="stop-color:var(--gp1)"/>
+              <stop offset="50%" style="stop-color:var(--gp2)"/>
+              <stop offset="100%" style="stop-color:var(--gp4)"/>
             </linearGradient>
           </defs>
           <circle class="gm-ring-bg" cx="50" cy="50" r="40"/>
@@ -1080,7 +1089,21 @@ function openCustomize(origin) {
 /* ---------- Notizen ---------- */
 const noteTitle = n => n.title || firstLine(n.body) || (n.audio?.length ? 'Sprachnotiz' : 'Ohne Titel');
 const firstLine = s => (s || '').split('\n').find(l => l.trim()) || '';
-let noteQ = '';
+let noteQ = '', noteTag = '';
+const noteTags = n => [...new Set((`${n.title || ''} ${n.body || ''}`.match(/#[\p{L}\p{N}_-]+/gu) || []).map(t => t.toLowerCase()))];
+const allNoteTags = () => {
+  const m = new Map();
+  data.notes.forEach(n => noteTags(n).forEach(t => m.set(t, (m.get(t) || 0) + 1)));
+  return [...m.entries()].sort((a, b) => b[1] - a[1]).map(x => x[0]);
+};
+const noteChecks = body => {
+  const out = [];
+  String(body || '').split('\n').forEach((line, idx) => {
+    const m = line.match(/^\s*\[([ xX])\]\s*(.*)$/);
+    if (m) out.push({ idx, done: m[1].toLowerCase() === 'x', text: m[2] });
+  });
+  return out;
+};
 
 // Angeheftete Notizen als kleine Kärtchen auf der Startseite
 function pinsHome(cfg) {
@@ -1095,25 +1118,35 @@ function pinsHome(cfg) {
   </section>`;
 }
 function viewNotes() {
+  const tags = allNoteTags();
+  if (noteTag && !tags.includes(noteTag)) noteTag = '';
   return `${header('Notizen')}
     <label class="search">${ic('search')}<input id="q" type="search" placeholder="Durchsuchen" aria-label="Notizen durchsuchen" value="${esc(noteQ)}"><span class="count" aria-hidden="true">${data.notes.length}</span></label>
+    ${tags.length ? `<div class="ntags" id="ntags" role="group" aria-label="Nach Tag filtern"><button type="button" class="dchip${!noteTag ? ' on' : ''}" data-ntag="">Alle</button>${tags.map(t => `<button type="button" class="dchip${noteTag === t ? ' on' : ''}" data-ntag="${esc(t)}">${esc(t)}</button>`).join('')}</div>` : ''}
     <div id="notegrid">${noteGrid()}</div>`;
 }
 function noteGrid() {
-  const q = noteQ.trim().toLowerCase();
   const list = displayedNotes();
   if (!data.notes.length) return emptyState('note', 'Noch keine Notizen', 'Tippe auf + für deine erste Notiz.');
-  if (!list.length) return emptyState('search', 'Nichts gefunden', `Keine Notiz enthält „${esc(noteQ)}“.`);
-  return `<div class="notes">${list.map(n => `
-    <button class="note" data-note="${n.id}" style="--a:var(--${n.color})">
-      <span class="ntop"><span class="dot"></span><span class="nright">${n.audio?.length ? `<span class="nmic" aria-label="${n.audio.length} Sprachnotiz${n.audio.length > 1 ? 'en' : ''}">${ic('mic')}${n.audio.length > 1 ? n.audio.length : ''}</span>` : ''}${n.pinned ? `<span class="pinned">${ic('pin')}</span>` : ''}</span></span>
+  if (!list.length) return emptyState('search', 'Nichts gefunden', noteTag ? `Keine Notiz mit ${esc(noteTag)}.` : `Keine Notiz enthält „${esc(noteQ)}“.`);
+  return `<div class="notes">${list.map(n => {
+    const chks = noteChecks(n.body), doneC = chks.filter(c => c.done).length, tags = noteTags(n).slice(0, 2);
+    return `<button class="note" data-note="${n.id}" style="--a:var(--${n.color})">
+      <span class="ntop"><span class="dot"></span><span class="nright">${chks.length ? `<span class="nchk-pill${doneC === chks.length ? ' all' : ''}" aria-label="${doneC} von ${chks.length} Punkten erledigt">${ic('listcheck')}${doneC}/${chks.length}</span>` : ''}${n.audio?.length ? `<span class="nmic" aria-label="${n.audio.length} Sprachnotiz${n.audio.length > 1 ? 'en' : ''}">${ic('mic')}${n.audio.length > 1 ? n.audio.length : ''}</span>` : ''}${n.pinned ? `<span class="pinned">${ic('pin')}</span>` : ''}</span></span>
       <b>${esc(noteTitle(n))}</b>
       <p>${esc((n.title ? n.body : n.body.split('\n').slice(1).join('\n')).slice(0, 220))}</p>
-      <small>${fmtDay(n.updated)}</small>
-    </button>`).join('')}</div>`;
+      <span class="nfoot">${tags.length ? `<span class="ncard-tags">${tags.map(t => `<em>${esc(t)}</em>`).join('')}</span>` : ''}<small>${fmtDay(n.updated)}</small></span>
+    </button>`;
+  }).join('')}</div>`;
 }
 function bindNoteSearch() {
   $('#q').addEventListener('input', e => { noteQ = e.target.value; paintNotes(true); });
+  $('#ntags')?.addEventListener('click', e => {
+    const b = e.target.closest('[data-ntag]'); if (!b) return;
+    noteTag = b.dataset.ntag; buzz(6);
+    $('#ntags').querySelectorAll('[data-ntag]').forEach(x => x.classList.toggle('on', x.dataset.ntag === noteTag));
+    paintNotes(true);
+  });
 }
 const emptyState = (icon, title, text) => `<div class="empty">${ic(icon)}<b>${title}</b><p>${text}</p></div>`;
 
@@ -1121,7 +1154,7 @@ const emptyState = (icon, title, text) => `<div class="empty">${ic(icon)}<b>${ti
 const noteSort = (a, b) => (b.pinned - a.pinned) || ((a.pos ?? -a.updated) - (b.pos ?? -b.updated));
 function displayedNotes() {
   const q = noteQ.trim().toLowerCase();
-  return data.notes.filter(n => !q || (n.title + ' ' + n.body).toLowerCase().includes(q)).sort(noteSort);
+  return data.notes.filter(n => (!noteTag || noteTags(n).includes(noteTag)) && (!q || (n.title + ' ' + n.body).toLowerCase().includes(q))).sort(noteSort);
 }
 let noteMode = null; // { sel: id | null } solange der Bearbeiten-Modus aktiv ist
 const noteEls = () => [...document.querySelectorAll('#notegrid .note')];
@@ -1299,8 +1332,14 @@ function openNote(id) {
     <div class="swatches" role="radiogroup" aria-label="Farbe">
       ${COLORS.map(c => `<button role="radio" aria-checked="${c === n.color}" aria-label="${c}" data-color="${c}" style="--a:var(--${c})"></button>`).join('')}
     </div>
+    <div class="nquick" role="toolbar" aria-label="Einfügen">
+      <button type="button" class="dchip" data-nins="check">${ic('listcheck')}Checkliste</button>
+      <button type="button" class="dchip" data-nins="tag">${ic('tag')}Tag</button>
+      <button type="button" class="dchip" data-nins="hr">— Linie</button>
+    </div>
+    <div class="nchecks" id="nchecks" aria-label="Checkliste"></div>
     <div class="memos" id="memos"></div>
-    <textarea class="nbody" id="nb" placeholder="Schreib los …" aria-label="Notiztext">${esc(n.body)}</textarea>
+    <textarea class="nbody" id="nb" placeholder="Schreib los … (Tipp: [ ] für Checklisten, #tag für Filter)" aria-label="Notiztext">${esc(n.body)}</textarea>
     <p class="saved">${ic('lock')}Automatisch gespeichert · verschlüsselt</p>`,
   { label: 'Notiz', cls: 'editor', onClose: () => {
       if (rec?.n === n) stopRec(); // Aufnahme läuft noch: wird gesichert, auch wenn die Notiz sonst leer ist
@@ -1308,13 +1347,44 @@ function openNote(id) {
       save();
     } });
   el.style.setProperty('--a', `var(--${n.color})`);
+  const nb = $('#nb', el), chkBox = $('#nchecks', el);
   const touch = () => {
     n.updated = Date.now();
     if (!data.notes.includes(n)) data.notes.push(n);
     save();
   };
+  const renderChecks = () => {
+    const items = noteChecks(n.body);
+    if (!items.length) { chkBox.innerHTML = ''; return; }
+    const doneCount = items.filter(x => x.done).length;
+    chkBox.innerHTML = `<div class="nchk-head"><span>Checkliste</span><b>${doneCount} / ${items.length}</b></div>
+      <ul class="nchk-list">${items.map(it => `<li class="nchk-row${it.done ? ' done' : ''}">
+        <button type="button" class="chk" role="checkbox" aria-checked="${it.done}" data-cidx="${it.idx}" aria-label="${esc(it.text || 'Punkt')}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4L18 8"/></svg>
+        </button>
+        <span>${esc(it.text || 'Unbenannt')}</span>
+      </li>`).join('')}</ul>`;
+  };
+  renderChecks();
+  chkBox.addEventListener('click', e => {
+    const b = e.target.closest('[data-cidx]'); if (!b) return;
+    const idx = +b.dataset.cidx, lines = String(n.body || '').split('\n');
+    if (lines[idx] == null) return;
+    lines[idx] = lines[idx].replace(/^(\s*)\[([ xX])\]/, (_, sp, ch) => `${sp}[${ch.toLowerCase() === 'x' ? ' ' : 'x'}]`);
+    n.body = lines.join('\n'); nb.value = n.body; buzz(8); touch(); renderChecks();
+  });
+  el.querySelectorAll('[data-nins]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.nins, v = nb.value, pos = nb.selectionStart ?? v.length;
+    const before = v.slice(0, pos), after = v.slice(nb.selectionEnd ?? pos);
+    const nl = before && !before.endsWith('\n') ? '\n' : '';
+    const ins = k === 'check' ? `${nl}[ ] ` : k === 'tag' ? (before && !/\s$/.test(before) ? ' #' : '#') : `${nl}---\n`;
+    nb.value = before + ins + after;
+    const nextPos = before.length + ins.length;
+    nb.focus(); nb.setSelectionRange(nextPos, nextPos);
+    n.body = nb.value; buzz(6); touch(); renderChecks();
+  }));
   $('#nt', el).addEventListener('input', e => { n.title = e.target.value; touch(); });
-  $('#nb', el).addEventListener('input', e => { n.body = e.target.value; touch(); });
+  nb.addEventListener('input', e => { n.body = e.target.value; touch(); renderChecks(); });
   el.querySelectorAll('[data-color]').forEach(b => b.addEventListener('click', () => {
     n.color = b.dataset.color; el.style.setProperty('--a', `var(--${n.color})`);
     el.querySelectorAll('[data-color]').forEach(x => x.setAttribute('aria-checked', x === b)); if (n.title || n.body) touch();
@@ -1349,19 +1419,40 @@ function fmtDue(iso, time) {
   return time ? base + ' · ' + time : base;
 }
 const dateIsoOffset = n => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
-// Auswahl-Chips: Heute / Morgen / Datum, dann Uhrzeit (optional)
+const REP_ORDER = ['', 'day', 'week', 'month'];
+const REP_LABEL = { day: 'Täglich', week: 'Wöchentlich', month: 'Monatlich' };
+function nextRepeatDate(due, rep) {
+  const base = due ? new Date(due + 'T12:00:00') : new Date();
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const d = new Date(Math.max(base.getTime(), today.getTime()));
+  if (rep === 'day') d.setDate(d.getDate() + 1);
+  else if (rep === 'week') d.setDate(d.getDate() + 7);
+  else if (rep === 'month') d.setMonth(d.getMonth() + 1);
+  return isoOf(d);
+}
+function spawnRepeatTodo(t) {
+  if (!t.repeat || t._spawned) return null;
+  t._spawned = true;
+  const due = nextRepeatDate(t.due, t.repeat);
+  const next = { id: uid(), text: t.text, done: false, created: Date.now(), due, time: t.time || '', repeat: t.repeat };
+  data.todos.push(next); freshIds.add(next.id);
+  return next;
+}
+// Auswahl-Chips: Heute / Morgen / Datum, dann Uhrzeit & Wiederholung (optional)
 function dateChips(box, draft, redraw) {
   const open = i => { try { i.showPicker(); } catch { i.focus(); i.click(); } };
   const hid = `<input type="date" class="vhid" id="pd" tabindex="-1" aria-hidden="true" value="${draft.due}"><input type="time" class="vhid" id="pt" tabindex="-1" aria-hidden="true" value="${draft.time}">`;
+  const repBtn = `<button type="button" class="dchip${draft.repeat ? ' on' : ''}" data-d="rep">${ic('repeat')}${draft.repeat ? REP_LABEL[draft.repeat] : 'Wiederholen'}</button>`;
   box.innerHTML = (draft.due
-    ? `<button type="button" class="dchip on" data-d="pick">${ic('cal')}${esc(fmtDue(draft.due))}</button><button type="button" class="dchip${draft.time ? ' on' : ''}" data-d="time">${ic('clock')}${draft.time || 'Uhrzeit'}</button><button type="button" class="dchip x" data-d="clear" aria-label="Datum entfernen">${ic('x')}</button>`
-    : `<button type="button" class="dchip" data-d="today">${ic('cal')}Heute</button><button type="button" class="dchip" data-d="tmr">Morgen</button><button type="button" class="dchip" data-d="pick">Datum …</button>`) + hid;
+    ? `<button type="button" class="dchip on" data-d="pick">${ic('cal')}${esc(fmtDue(draft.due))}</button><button type="button" class="dchip${draft.time ? ' on' : ''}" data-d="time">${ic('clock')}${draft.time || 'Uhrzeit'}</button>${repBtn}<button type="button" class="dchip x" data-d="clear" aria-label="Datum entfernen">${ic('x')}</button>`
+    : `<button type="button" class="dchip" data-d="today">${ic('cal')}Heute</button><button type="button" class="dchip" data-d="tmr">Morgen</button><button type="button" class="dchip" data-d="pick">Datum …</button>${repBtn}`) + hid;
   const di = box.querySelector('#pd'), ti = box.querySelector('#pt');
   box.querySelectorAll('[data-d]').forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.d;
     if (k === 'pick') return open(di);
     if (k === 'time') return open(ti);
-    if (k === 'today') draft.due = todayIso(); else if (k === 'tmr') draft.due = dateIsoOffset(1); else { draft.due = ''; draft.time = ''; }
+    if (k === 'rep') { draft.repeat = REP_ORDER[(REP_ORDER.indexOf(draft.repeat || '') + 1) % REP_ORDER.length]; if (draft.repeat && !draft.due) draft.due = todayIso(); }
+    else if (k === 'today') draft.due = todayIso(); else if (k === 'tmr') draft.due = dateIsoOffset(1); else { draft.due = ''; draft.time = ''; draft.repeat = ''; }
     buzz(6); redraw();
   }));
   di.addEventListener('change', () => { draft.due = di.value; if (!di.value) draft.time = ''; redraw(); });
@@ -1380,7 +1471,7 @@ function pickTodoDate(id) {
 function todoItem(t, bare) {
   return `<li class="todo ${t.done ? 'done' : ''} ${freshIds.has(t.id) ? 'pop' : ''}">
     <button class="chk" role="checkbox" aria-checked="${t.done}" data-toggle="${t.id}" aria-label="${esc(t.text)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4L18 8"/></svg></button>
-    <span class="tx"><span class="tt">${esc(t.text)}</span>${t.due ? `<button class="tdue ${dueCls(t)}" data-tdue="${t.id}" aria-label="Datum ändern">${ic('cal')}${esc(fmtDue(t.due, t.time))}</button>` : ''}</span>
+    <span class="tx"><span class="tt">${esc(t.text)}</span><span class="tmeta">${t.due ? `<button class="tdue ${dueCls(t)}" data-tdue="${t.id}" aria-label="Datum ändern">${ic('cal')}${esc(fmtDue(t.due, t.time))}</button>` : ''}${t.repeat ? `<span class="trep" aria-label="Wiederholt sich ${REP_LABEL[t.repeat]}">${ic('repeat')}${REP_LABEL[t.repeat]}</span>` : ''}</span></span>
     ${bare ? '' : `<button class="iconbtn sm" data-deltodo="${t.id}" aria-label="Aufgabe löschen">${ic('x')}</button>`}</li>`;
 }
 // Serie: an wie vielen Tagen in Folge mindestens ein To-do erledigt wurde (heute zählt mit, sobald eines abgehakt ist)
@@ -1432,6 +1523,18 @@ function animateProg() {
   };
   requestAnimationFrame(step);
 }
+function heatHtml() {
+  const dc = data.settings.dc || {}, days = [];
+  for (let i = 27; i >= 0; i--) { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - i); days.push(isoOf(d)); }
+  const vals = days.map(iso => dc[iso] || 0), total = vals.reduce((a, b) => a + b, 0);
+  if (!total && !data.todos.length) return '';
+  const max = Math.max(1, ...vals), st = streak();
+  const lvl = v => !v ? 0 : Math.min(4, Math.ceil(v / max * 4));
+  return `<section class="heat" aria-label="Aktivität der letzten 28 Tage">
+    <div class="heat-top"><span>28-Tage-Rhythmus</span><b>${total} erledigt${st > 1 ? ` · ${st} Tage Serie` : ''}</b></div>
+    <div class="heat-grid" aria-hidden="true">${vals.map((v, i) => `<i class="l${lvl(v)}${i === 27 ? ' now' : ''}" title="${days[i]}: ${v}" style="--k:${i}"></i>`).join('')}</div>
+  </section>`;
+}
 function viewTodos() {
   const open = data.todos.filter(t => !t.done).sort(todoSort);
   const done = data.todos.filter(t => t.done).sort((a, b) => b.doneAt - a.doneAt);
@@ -1442,6 +1545,7 @@ function viewTodos() {
     </form>
     <div class="dchips" id="dchips"></div>
     ${progHtml(open.length)}
+    ${heatHtml()}
     ${open.length ? `<div class="hsec"><span>Offen</span><b>${open.length}</b></div>
     <ul class="todos">${open.map(t => todoItem(t)).join('')}</ul>` : ''}
     ${done.length ? `<div class="hsec"><span>Erledigt</span><b class="g">${done.length}</b><button class="textbtn" data-act="cleardone">Löschen</button></div>
@@ -1449,27 +1553,31 @@ function viewTodos() {
     ${data.todos.length ? '' : emptyState('check', 'Alles erledigt', 'Schreib oben deine erste Aufgabe rein.')}`;
 }
 function bindTodoForm() {
-  const draft = { due: '', time: '' }, box = $('#dchips');
+  const draft = { due: '', time: '', repeat: '' }, box = $('#dchips');
   const draw = () => dateChips(box, draft, draw);
   draw(); animateProg();
   $('#addTodo').addEventListener('submit', e => {
     e.preventDefault();
     const v = $('#tt').value.trim(); if (!v) return;
-    data.todos.push({ id: uid(), text: v, done: false, created: Date.now(), due: draft.due, time: draft.time });
+    data.todos.push({ id: uid(), text: v, done: false, created: Date.now(), due: draft.due, time: draft.time, repeat: draft.repeat || '' });
     save(); renderTab(); $('#tt').focus();
   });
 }
 function toggleTodo(id, btn) {
   const t = data.todos.find(x => x.id === id); if (!t) return;
-  countDone(t, !t.done); t.done = !t.done; t.doneAt = Date.now(); if (t.done) markDay(); save();
+  countDone(t, !t.done); t.done = !t.done; t.doneAt = Date.now();
+  let next = null;
+  if (t.done) { markDay(); next = spawnRepeatTodo(t); }
+  save();
   buzz(t.done ? 12 : 6);
-  if (t.done && !data.todos.some(x => !x.done)) { // letztes To-do abgehakt: kurz feiern
+  if (next) toast(`Wiederholt · ${fmtDue(next.due)}`);
+  else if (t.done && !data.todos.some(x => !x.done)) { // letztes To-do abgehakt: kurz feiern
     const r = btn.getBoundingClientRect();
     setTimeout(() => { confetti(r.left + r.width / 2, r.top + r.height / 2); buzz([10, 40, 10, 40, 18]); toast('Alles erledigt'); }, 220);
   }
   const li = btn.closest('.todo');
   btn.setAttribute('aria-checked', t.done); li.classList.toggle('done', t.done);
-  if (tab === 'home') { setTimeout(() => { if (t.done) collapseTodo(li); }, 520); return; }
+  if (tab === 'home') { setTimeout(() => { if (t.done) { if (next) renderTab(); else collapseTodo(li); } }, 520); return; }
   setTimeout(renderTab, 420);
 }
 // Löscht ein To-do (Zeile klappt weich zu) und bietet kurz „Rückgängig“ an
@@ -1614,10 +1722,16 @@ setInterval(() => checkTodoIsland(false), 30000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && data && Date.now() - islandLast > 15 * 60e3) setTimeout(() => checkTodoIsland(true), 600); });
 
 /* ---------- Visualisierung ---------- */
+let cardsView = lsGet('lumen-cards-view') || 'stack';
 function viewCards() {
+  const isStack = cardsView === 'stack' && data.cards.length > 1;
   return `${header('Visualisierung')}
-    ${data.cards.length ? `<p class="sub left">Tippe auf eine Karte, um sie in 3D anzusehen.</p>
-    <div class="cgrid">${data.cards.map(c => `<button class="cardmini" data-card="${c.id}" aria-label="${esc(c.name || 'Karte')} öffnen">${cardMarkup(c)}</button>`).join('')}</div>`
+    ${data.cards.length ? `<div class="cview-bar"><p class="sub left">Tippe auf eine Karte für 3D & Rückseite.</p>
+      ${data.cards.length > 1 ? `<div class="seg sm" role="radiogroup" aria-label="Kartenansicht">
+        <button type="button" role="radio" data-cview="stack" aria-checked="${cardsView === 'stack'}">Stapel</button>
+        <button type="button" role="radio" data-cview="grid" aria-checked="${cardsView === 'grid'}">Raster</button>
+      </div>` : ''}</div>
+    <div class="${isStack ? 'cwallet' : 'cgrid'}" style="--n:${data.cards.length}">${data.cards.map((c, i) => `<button class="cardmini" data-card="${c.id}" style="--ci:${i}" aria-label="${esc(c.name || 'Karte')} öffnen">${cardMarkup(c)}</button>`).join('')}</div>`
       : emptyState('card', 'Noch keine Karten', 'Füge Bankkarten, Kundenkarten oder E-Mail-Konten hinzu – sie schweben dann in 3D.')}`;
 }
 
@@ -1743,6 +1857,11 @@ function openSettings(origin) {
       <div class="row"><div><b>Lichtbrechung</b><small>${lg.ok ? 'Der Hintergrund biegt sich am Rand wie durch echtes Glas. Ausschalten, falls es ruckelt.' : 'In diesem Browser nicht verfügbar – geht in Chrome.'}</small></div>
         <button class="switch" id="lensSw" role="switch" aria-checked="${lg.ok && lsGet('lumen-lens') !== '0'}" aria-label="Lichtbrechung" ${lg.ok ? '' : 'disabled'}></button></div>
     </div>
+    <div class="group collapsible${getTheme() === 'gemini' ? '' : ' collapsed'}" id="prismGroup"${getTheme() === 'gemini' ? '' : ' inert'}>
+      <div class="wallrow prismrow"><b>Farbspektrum</b>
+        <div class="swatches big" role="radiogroup" aria-label="Gemini-Farbspektrum">${PRISMS.map(([k, n]) => `<button type="button" role="radio" data-prism="${k}" aria-label="${n}"></button>`).join('')}</div>
+        <small class="prism-cap" id="prismCap"></small></div>
+    </div>
     <h3 class="sec">Töne</h3>
     <div class="group"><div class="row"><div><b>Töne & Vibration</b><small>Timer-Ton und Vibration beim Antippen</small></div>
       <button class="switch" id="sndSw" role="switch" aria-checked="${soundOn()}" aria-label="Töne und Vibration"></button></div></div>
@@ -1767,16 +1886,20 @@ function openSettings(origin) {
     <p class="foot">Lumen 1.0 · Alles bleibt auf diesem Gerät, verschlüsselt mit AES-256.</p>`, { label: 'Einstellungen', origin });
 
   const markTheme = () => {
-    const th = getTheme(), g = $('#wallGroup', el);
+    const th = getTheme(), g = $('#wallGroup', el), pg = $('#prismGroup', el), pr = getPrism();
     el.querySelectorAll('[data-pick]').forEach(b => b.setAttribute('aria-checked', b.dataset.pick === th));
     el.querySelectorAll('.wallrow [data-wall]').forEach(b => b.setAttribute('aria-checked', b.dataset.wall === getWall()));
+    el.querySelectorAll('.prismrow [data-prism]').forEach(b => b.setAttribute('aria-checked', b.dataset.prism === pr));
+    const cap = $('#prismCap', el); if (cap) cap.textContent = PRISMS.find(x => x[0] === pr)?.[1] || 'Polar';
     g.classList.toggle('collapsed', th !== 'glass'); g.toggleAttribute('inert', th !== 'glass');
+    pg.classList.toggle('collapsed', th !== 'gemini'); pg.toggleAttribute('inert', th !== 'gemini');
   };
   markTheme();
   $('#sndSw', el).addEventListener('click', e => { const on = !soundOn(); lsSet('lumen-sound', on ? '1' : '0'); e.currentTarget.setAttribute('aria-checked', on); if (on) buzz(14); toast(on ? 'Ton an' : 'Lautlos'); });
   $('#lensSw', el).addEventListener('click', e => { const on = lsGet('lumen-lens') === '0'; lsSet('lumen-lens', on ? '1' : '0'); e.currentTarget.setAttribute('aria-checked', on); buzz(6); lgSync(); });
   el.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { if (b.dataset.pick === getTheme()) return; buzz(10); setTheme(b.dataset.pick, getWall(), b, markTheme); }));
   el.querySelectorAll('.wallrow [data-wall]').forEach(b => b.addEventListener('click', () => { if (b.dataset.wall === getWall()) return; buzz(6); setTheme('glass', b.dataset.wall, b, markTheme); }));
+  el.querySelectorAll('.prismrow [data-prism]').forEach(b => b.addEventListener('click', () => { if (b.dataset.prism === getPrism()) return; buzz(6); setTheme('gemini', getWall(), b, markTheme, b.dataset.prism); }));
 
   $('#codeSw', el).addEventListener('click', async e => {
     const sw = e.currentTarget;
@@ -1874,18 +1997,18 @@ function openQuickTodo() {
     </form>`, { label: 'Neues To-do', cls: 'quick', onClose: () => window.visualViewport?.removeEventListener('resize', kb) });
   window.visualViewport?.addEventListener('resize', kb);
   const input = $('#qt', el), list = $('#added', el);
-  const draft = { due: '', time: '' }, chips = $('#qchips', el);
+  const draft = { due: '', time: '', repeat: '' }, chips = $('#qchips', el);
   const drawChips = () => dateChips(chips, draft, drawChips);
   drawChips();
   $('#qf', el).addEventListener('submit', e => {
     e.preventDefault();
     const v = input.value.trim(); if (!v) return;
-    const nt = { id: uid(), text: v, done: false, created: Date.now(), due: draft.due, time: draft.time };
+    const nt = { id: uid(), text: v, done: false, created: Date.now(), due: draft.due, time: draft.time, repeat: draft.repeat || '' };
     data.todos.push(nt); freshIds.add(nt.id);
     save(); buzz(10); input.value = ''; input.focus();
     const li = document.createElement('li');
-    li.innerHTML = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4L18 8"/></svg><span>${esc(v)}${nt.due ? ' · ' + esc(fmtDue(nt.due, nt.time)) : ''}</span>`;
-    draft.due = draft.time = ''; drawChips();
+    li.innerHTML = `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4L18 8"/></svg><span>${esc(v)}${nt.due ? ' · ' + esc(fmtDue(nt.due, nt.time)) : ''}${nt.repeat ? ' · ' + REP_LABEL[nt.repeat] : ''}</span>`;
+    draft.due = draft.time = draft.repeat = ''; drawChips();
     list.prepend(li); while (list.children.length > 3) list.lastChild.remove();
   });
   setTimeout(() => input.focus(), 380);
@@ -2136,6 +2259,68 @@ function openLive(open) {
   clearTimeout(liveT);
   if (open && !getTimer()?.done) liveT = setTimeout(() => openLive(false), 6000);
 }
+/* ---------- Fokus-Timer Ambient Soundscape (100% offline Web Audio API) ---------- */
+const AMB_KINDS = [['off', 'Aus'], ['rain', 'Regen'], ['brown', 'Rauschen'], ['drone', 'Klang']];
+const amb = { ctx: null, gain: null, nodes: [], kind: 'off' };
+function stopAmbient() {
+  if (!amb.ctx || !amb.gain) { amb.kind = 'off'; return; }
+  const { ctx, gain, nodes } = amb;
+  amb.gain = null; amb.nodes = []; amb.kind = 'off';
+  try {
+    const now = ctx.currentTime;
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setValueAtTime(gain.gain.value, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+    setTimeout(() => { nodes.forEach(n => { try { n.stop?.(); n.disconnect?.(); } catch {} }); try { gain.disconnect(); } catch {} }, 400);
+  } catch {}
+}
+function startAmbient(kind) {
+  if (!kind || kind === 'off' || !soundOn()) { stopAmbient(); return; }
+  if (amb.kind === kind && amb.gain) return;
+  stopAmbient();
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    const ctx = amb.ctx || (amb.ctx = new AC());
+    if (ctx.state === 'suspended') ctx.resume();
+    const gain = ctx.createGain(), nodes = [];
+    const now = ctx.currentTime;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.connect(ctx.destination);
+    if (kind === 'rain' || kind === 'brown') {
+      const len = ctx.sampleRate * 3, buf = ctx.createBuffer(1, len, ctx.sampleRate), ch = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++) {
+        const w = Math.random() * 2 - 1;
+        if (kind === 'brown') { last = (last + 0.025 * w) / 1.025; ch[i] = last * 3.2; }
+        else { last = (last + 0.14 * w) / 1.14; ch[i] = last * 1.4; }
+      }
+      const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+      const flt = ctx.createBiquadFilter();
+      flt.type = kind === 'rain' ? 'bandpass' : 'lowpass';
+      flt.frequency.value = kind === 'rain' ? 1150 : 340;
+      flt.Q.value = kind === 'rain' ? 0.55 : 0.7;
+      src.connect(flt); flt.connect(gain); src.start();
+      nodes.push(src, flt);
+      gain.gain.exponentialRampToValueAtTime(kind === 'rain' ? 0.08 : 0.12, now + 0.55);
+    } else if (kind === 'drone') {
+      const flt = ctx.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.value = 420; flt.connect(gain);
+      const lfo = ctx.createOscillator(), lfoG = ctx.createGain();
+      lfo.frequency.value = 0.14; lfoG.gain.value = 95; lfo.connect(lfoG); lfoG.connect(flt.frequency); lfo.start();
+      nodes.push(flt, lfo, lfoG);
+      [110, 164.81, 220].forEach((freq, idx) => {
+        const osc = ctx.createOscillator(), og = ctx.createGain();
+        osc.type = idx === 1 ? 'triangle' : 'sine';
+        osc.frequency.value = freq;
+        og.gain.value = idx === 0 ? 0.55 : 0.25;
+        osc.connect(og); og.connect(flt); osc.start();
+        nodes.push(osc, og);
+      });
+      gain.gain.exponentialRampToValueAtTime(0.065, now + 0.7);
+    }
+    amb.gain = gain; amb.nodes = nodes; amb.kind = kind;
+  } catch {}
+}
+
 function paintLive() {
   const t = getTimer(), el = liveEl; if (!t || !el) return;
   const left = timerLeft(t), txt = t.done ? 'Fertig' : fmtClock(left);
@@ -2144,12 +2329,20 @@ function paintLive() {
   el.classList.toggle('paused', !t.end && !t.done); el.classList.toggle('done', !!t.done);
   const pb = $('#lvPause', el);
   pb.innerHTML = ic(t.done ? 'check' : t.end ? 'pause' : 'play'); pb.setAttribute('aria-label', t.done ? 'Fertig' : t.end ? 'Pause' : 'Weiter');
-  $('.lv-label', el).textContent = t.done ? 'Zeit ist um' : t.end ? (t.label || 'Fokus') : 'Pausiert';
+  const sb = $('#lvSound', el);
+  if (sb) {
+    const on = t.sound && t.sound !== 'off' && !!t.end;
+    sb.classList.toggle('on', on);
+    sb.setAttribute('aria-pressed', String(on));
+    sb.setAttribute('aria-label', on ? `Klang: ${AMB_KINDS.find(x => x[0] === t.sound)?.[1] || 'An'}` : 'Fokus-Klang einschalten');
+  }
+  $('.lv-label', el).textContent = t.done ? 'Zeit ist um' : t.end ? (t.label || (t.sound && t.sound !== 'off' ? AMB_KINDS.find(x => x[0] === t.sound)?.[1] : 'Fokus')) : 'Pausiert';
   el.setAttribute('aria-label', `Fokus-Timer, ${t.done ? 'fertig' : 'noch ' + fmtClock(left)}`);
 }
 function syncLive() {
   const t = getTimer();
   if (!t) {
+    stopAmbient();
     if (liveEl) { const el = liveEl; liveEl = null; clearTimeout(liveT); document.body.classList.remove('has-live'); el.classList.add('bye'); setTimeout(() => el.remove(), reduced() ? 0 : 380); }
     return;
   }
@@ -2157,7 +2350,7 @@ function syncLive() {
     const el = liveEl = document.createElement('div');
     el.className = 'live'; el.setAttribute('role', 'button'); el.tabIndex = 0; el.setAttribute('aria-expanded', 'false');
     el.innerHTML = `<div class="lv-c" aria-hidden="true"><svg class="lv-ring" viewBox="0 0 20 20"><circle class="bg" cx="10" cy="10" r="7.5"/><circle class="fg" cx="10" cy="10" r="7.5" pathLength="100"/></svg><span class="lv-time"></span></div>
-      <div class="lv-x"><button type="button" id="lvPause" tabindex="-1"></button><button type="button" id="lvStop" tabindex="-1" aria-label="Timer beenden">${ic('x')}</button>
+      <div class="lv-x"><button type="button" id="lvPause" tabindex="-1"></button><button type="button" id="lvSound" class="lv-snd" tabindex="-1" aria-label="Fokus-Klang">${ic('waves')}</button><button type="button" id="lvStop" tabindex="-1" aria-label="Timer beenden">${ic('x')}</button>
         <span class="lv-info"><small class="lv-label"></small><b class="lv-time"></b></span></div>`;
     document.body.append(el); document.body.classList.add('has-live');
     requestAnimationFrame(() => el.classList.add('in'));
@@ -2165,49 +2358,67 @@ function syncLive() {
       const b = e.target.closest('button'), t = getTimer(); if (!t) return;
       if (!b) return openLive(!el.classList.contains('open'));
       buzz(8);
-      if (b.id === 'lvStop' || t.done) { const was = t.done; delete data.settings.timer; save(); syncLive(); if (!was) toast('Timer beendet'); return; }
-      if (t.end) { t.left = timerLeft(t); t.end = null; } else t.end = Date.now() + t.left * 1000;
+      if (b.id === 'lvSound') {
+        const order = AMB_KINDS.map(x => x[0]);
+        t.sound = order[(order.indexOf(t.sound || 'off') + 1) % order.length];
+        data.settings.timerSound = t.sound;
+        if (t.end && t.sound !== 'off') startAmbient(t.sound); else stopAmbient();
+        save(); paintLive(); openLive(true);
+        return;
+      }
+      if (b.id === 'lvStop' || t.done) { const was = t.done; stopAmbient(); delete data.settings.timer; save(); syncLive(); if (!was) toast('Timer beendet'); return; }
+      if (t.end) { t.left = timerLeft(t); t.end = null; stopAmbient(); } else { t.end = Date.now() + t.left * 1000; if (t.sound && t.sound !== 'off') startAmbient(t.sound); }
       save(); paintLive(); openLive(true);
     });
     el.addEventListener('keydown', e => { if (e.target === el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openLive(!el.classList.contains('open')); } });
   }
   if (t.end && timerLeft(t) === 0) { // abgelaufen
+    stopAmbient();
     t.end = null; t.left = 0; t.done = true; save(); paintLive(); openLive(true);
     buzz([60, 80, 60, 80, 120]); chime();
     const r = liveEl.getBoundingClientRect(); setTimeout(() => confetti(r.left + r.width / 2, r.top + r.height / 2), 250);
     return;
   }
+  if (!t.end || t.done) stopAmbient();
   paintLive();
 }
 setInterval(syncLive, 500);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) syncLive(); });
 document.addEventListener('pointerdown', e => { if (liveEl?.classList.contains('open') && !liveEl.contains(e.target) && !getTimer()?.done) openLive(false); });
-function startTimer(min, label) {
-  data.settings.timer = { total: min * 60, end: Date.now() + min * 60000, left: min * 60, label: label.trim().slice(0, 40) };
+function startTimer(min, label, sound = 'off') {
+  data.settings.timer = { total: min * 60, end: Date.now() + min * 60000, left: min * 60, label: label.trim().slice(0, 40), sound };
+  if (sound && sound !== 'off') startAmbient(sound); else stopAmbient();
   save(); syncLive();
 }
 function openTimerSheet() {
   if (getTimer()) { syncLive(); return openLive(true); }
-  let min = data.settings.timerMin || 25;
+  let min = data.settings.timerMin || 25, snd = data.settings.timerSound || 'off';
   const el = openSheet(`
     <div class="q-bd" data-close></div>
     <form class="q-card" id="tf" autocomplete="off">
       <div class="q-top"><h2>Fokus-Timer</h2><button type="button" class="iconbtn sm" data-close aria-label="Schließen">${ic('x')}</button></div>
       <div class="tbig" id="tbig" aria-live="polite"></div>
       <div class="dchips tmins" role="radiogroup" aria-label="Dauer">${[5, 15, 25, 45, 60].map(m => `<button type="button" class="dchip" role="radio" data-min="${m}">${m} Min.</button>`).join('')}</div>
+      <div class="tsnd-wrap"><span class="tsnd-lbl">${ic('waves')}Fokus-Klang (offline)</span>
+        <div class="dchips tsnds" role="radiogroup" aria-label="Fokus-Klang">${AMB_KINDS.map(([k, l]) => `<button type="button" class="dchip" role="radio" data-snd="${k}">${l}</button>`).join('')}</div>
+      </div>
       <label class="field"><span>Woran arbeitest du? (optional)</span><input id="tl" maxlength="40" placeholder="z. B. Steuererklärung" enterkeyhint="go"></label>
       <button class="btn primary big" type="submit">Starten</button>
     </form>`, { label: 'Fokus-Timer', cls: 'quick timer' });
   const paint = pop => {
     el.querySelectorAll('[data-min]').forEach(b => { const on = +b.dataset.min === min; b.setAttribute('aria-checked', on); b.classList.toggle('on', on); });
+    el.querySelectorAll('[data-snd]').forEach(b => { const on = b.dataset.snd === snd; b.setAttribute('aria-checked', on); b.classList.toggle('on', on); });
     $('#tbig', el).textContent = fmtClock(min * 60); if (pop) popEl($('#tbig', el));
   };
   paint();
-  el.addEventListener('click', e => { const b = e.target.closest('[data-min]'); if (b) { min = +b.dataset.min; buzz(6); paint(true); } });
+  el.addEventListener('click', e => {
+    const bm = e.target.closest('[data-min]'); if (bm) { min = +bm.dataset.min; buzz(6); paint(true); return; }
+    const bs = e.target.closest('[data-snd]'); if (bs) { snd = bs.dataset.snd; buzz(6); paint(); }
+  });
   $('#tf', el).addEventListener('submit', e => {
     e.preventDefault();
-    data.settings.timerMin = min; const label = $('#tl', el).value;
-    buzz(12); history.back(); setTimeout(() => startTimer(min, label), 300);
+    data.settings.timerMin = min; data.settings.timerSound = snd; const label = $('#tl', el).value;
+    buzz(12); history.back(); setTimeout(() => startTimer(min, label, snd), 300);
   });
 }
 
@@ -2222,6 +2433,7 @@ function todoMenu(id, li) {
   const items = [
     [t.done ? 'reopen' : 'done', t.done ? 'Wieder öffnen' : 'Erledigt', t.done ? 'back' : 'check'],
     ['today', 'Heute', 'cal'], ['tmr', 'Morgen', 'clock'], ['pick', 'Datum wählen …', 'cal'],
+    ['rep', t.repeat ? `Wiederholung: ${REP_LABEL[t.repeat]}` : 'Wiederholen', 'repeat'],
     ['rename', 'Umbenennen', 'edit'], ['del', 'Löschen', 'trash'],
   ];
   const el = document.createElement('div');
@@ -2253,8 +2465,9 @@ function todoMenu(id, li) {
     const k = b.dataset.k;
     close(async () => {
       if (!data.todos.includes(t)) return;
-      if (k === 'done' || k === 'reopen') { countDone(t, k === 'done'); t.done = k === 'done'; t.doneAt = Date.now(); if (t.done) markDay(); save(); renderTab(); return toast(t.done ? 'Erledigt' : 'Wieder offen'); }
+      if (k === 'done' || k === 'reopen') { countDone(t, k === 'done'); t.done = k === 'done'; t.doneAt = Date.now(); let nx = null; if (t.done) { markDay(); nx = spawnRepeatTodo(t); } save(); renderTab(); return toast(nx ? `Wiederholt · ${fmtDue(nx.due)}` : t.done ? 'Erledigt' : 'Wieder offen'); }
       if (k === 'today' || k === 'tmr') { t.due = k === 'today' ? todayIso() : dateIsoOffset(1); save(); renderTab(); return; }
+      if (k === 'rep') { t.repeat = REP_ORDER[(REP_ORDER.indexOf(t.repeat || '') + 1) % REP_ORDER.length]; if (t.repeat && !t.due) t.due = todayIso(); save(); renderTab(); return toast(t.repeat ? `Wiederholung: ${REP_LABEL[t.repeat]}` : 'Wiederholung aus'); }
       if (k === 'pick') return pickTodoDate(t.id);
       if (k === 'del') return removeTodo(t.id, document.querySelector(`.todo [data-toggle="${t.id}"]`)?.closest('.todo'));
       if (k === 'rename') {
@@ -2564,6 +2777,7 @@ app.addEventListener('click', e => {
   if (b.dataset.tab) return switchTab(b.dataset.tab);
   if (b.dataset.go) return switchTab(b.dataset.go);
   if (b.dataset.note) return openNote(b.dataset.note);
+  if (b.dataset.cview) { if (b.dataset.cview === cardsView) return; cardsView = b.dataset.cview; lsSet('lumen-cards-view', cardsView); buzz(6); renderTab(); staggerScreen(); return; }
   if (b.dataset.card) return openViewer(b.dataset.card);
   if (b.dataset.inv) return openInvoice(b.dataset.inv);
   if (b.dataset.tdue) return pickTodoDate(b.dataset.tdue);
