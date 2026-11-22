@@ -1,7 +1,7 @@
 {
   "name": "Lumen",
   "short_name": "Lumen",
-  "description": "Private Notizen, To-dos und Karten – verschlüsselt auf deinem Handy.",
+  "description": "Private Notizen, To-dos und Rechnungen – verschlüsselt auf deinem Handy.",
   "lang": "de",
   "start_url": "./",
   "scope": "./",

@@ -1,5 +1,4 @@
 import { Vault } from './vault.js';
-import { cardMarkup, mountViewer, THEMES } from './viz.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
@@ -619,7 +618,6 @@ const TABS = [
   { id: 'home', label: 'Home', icon: 'home', color: 'white' },
   { id: 'notes', label: 'Notizen', icon: 'note', color: 'yellow' },
   { id: 'todos', label: 'To-dos', icon: 'check', color: 'orange' },
-  { id: 'cards', label: 'Visual', icon: 'card', color: 'violet' },
 ];
 
 function renderMain() {
@@ -631,7 +629,6 @@ function renderMain() {
     </nav>
     <div class="scrim" id="scrim"></div>
     <div class="fabmenu" id="fabmenu" role="menu" aria-label="Hinzufügen" inert>
-      <button class="fm-item" role="menuitem" data-add="card" style="--i:2;--a:var(--violet)"><span>Visualisierung</span><span class="fm-ic">${ic('card')}</span></button>
       <button class="fm-item" role="menuitem" data-add="todo" style="--i:1;--a:var(--orange)"><span>To-do</span><span class="fm-ic">${ic('check')}</span></button>
       <button class="fm-item" role="menuitem" data-add="note" style="--i:0;--a:var(--yellow)"><span>Notiz</span><span class="fm-ic">${ic('note')}</span></button>
     </div>
@@ -644,28 +641,27 @@ function renderMain() {
   setTimeout(() => { checkTodoIsland(true); if (lowPower) battNote(getTheme() === 'glass' && lsGet('lumen-lens') !== '0'); }, 1500);
 }
 
-// Das Plus-Menü passt sich dem Bereich an: Home = Notiz/To-do/Visual, Visual = Art der Karte
-function menuHtml(t) {
+// Das Plus-Menü auf Home: Notiz, To-do, Rechnung, Fokus-Timer
+function menuHtml() {
   const item = (add, label, icon, i, color) => `<button class="fm-item" role="menuitem" data-add="${add}" style="--i:${i};--a:var(--${color})"><span>${label}</span><span class="fm-ic">${ic(icon)}</span></button>`;
-  return t === 'cards'
-    ? item('card:mail', 'E-Mail', 'mail', 2, 'blue') + item('card:member', 'Kundenkarte', 'bag', 1, 'green') + item('card:bank', 'Bankkarte', 'card', 0, 'violet')
-    : item('timer', 'Fokus-Timer', 'clock', 4, 'pink') + item('invoice', 'Rechnung', 'receipt', 3, 'green') + item('card', 'Visualisierung', 'card', 2, 'violet') + item('todo', 'To-do', 'check', 1, 'orange') + item('note', 'Notiz', 'note', 0, 'yellow');
+  return item('timer', 'Fokus-Timer', 'clock', 3, 'pink') + item('invoice', 'Rechnung', 'receipt', 2, 'green') + item('todo', 'To-do', 'check', 1, 'orange') + item('note', 'Notiz', 'note', 0, 'yellow');
 }
 function renderTab() {
   const screen = $('#screen'); if (!screen || !data) return;
+  if (!{ home: 1, notes: 1, todos: 1 }[tab]) tab = 'home';
   setMenu(false);
   resetNoteMode();
-  const fm = $('#fabmenu'); if (fm) fm.innerHTML = menuHtml(tab);
+  const fm = $('#fabmenu'); if (fm) fm.innerHTML = menuHtml();
   $('#glowwrap')?.classList.toggle('on', tab === 'home');
-  screen.innerHTML = { home: viewHome, notes: viewNotes, todos: viewTodos, cards: viewCards }[tab]();
+  screen.innerHTML = { home: viewHome, notes: viewNotes, todos: viewTodos }[tab]();
   if (countNext) { countNext = false; countUp(screen); }
   document.querySelectorAll('[data-tab]').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   const fab = $('#fab');
-  const fabCfg = { home: ['white', 'Hinzufügen'], notes: ['yellow', 'Neue Notiz'], todos: ['orange', 'Neue Aufgabe'], cards: ['violet', 'Neue Karte'] }[tab];
+  const fabCfg = { home: ['white', 'Hinzufügen'], notes: ['yellow', 'Neue Notiz'], todos: ['orange', 'Neue Aufgabe'] }[tab];
   fab.hidden = !fabCfg;
   fab.dataset.on = tab;
   if (fabCfg) { fab.style.setProperty('--a', `var(--${fabCfg[0]})`); fab.setAttribute('aria-label', fabCfg[1]); }
-  if (tab === 'home' || tab === 'cards') { fab.setAttribute('aria-haspopup', 'menu'); fab.setAttribute('aria-expanded', 'false'); }
+  if (tab === 'home') { fab.setAttribute('aria-haspopup', 'menu'); fab.setAttribute('aria-expanded', 'false'); }
   else { fab.removeAttribute('aria-haspopup'); fab.removeAttribute('aria-expanded'); }
   if (tab === 'notes') { bindNoteSearch(); bindNoteEdit(); }
   if (tab === 'todos') bindTodoForm();
@@ -673,7 +669,7 @@ function renderTab() {
 
 function staggerScreen() {
   const s = $('#screen'); if (!s || reduced()) return;
-  s.querySelectorAll('.note, .cardmini, .todo, .invrow, .search, .empty, .prog, .heat, .pinnote, .addrow, .hsec, .gm-card, .gm-hero, .gm-pulse, .gm-qbtn').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
+  s.querySelectorAll('.note, .todo, .invrow, .search, .empty, .prog, .heat, .pinnote, .addrow, .hsec, .gm-card, .gm-hero, .gm-pulse, .gm-qbtn').forEach((el, i) => el.style.setProperty('--i', Math.min(i, 12)));
   s.classList.add('stag'); setTimeout(() => s.classList.remove('stag'), 1100);
 }
 
@@ -793,7 +789,6 @@ function emberDash() {
   const over = invs.filter(invOverdue).length + data.todos.filter(t => !t.done && t.due && dayDiff(t.due) < 0).length;
   const soon = invs.filter(i => i.status !== 'paid' && i.due && !invOverdue(i) && dayDiff(i.due) <= 7).length + data.todos.filter(t => !t.done && t.due && dayDiff(t.due) >= 0 && dayDiff(t.due) <= 2).length;
   const openT = data.todos.filter(t => !t.done).length, todayT = data.todos.filter(t => !t.done && t.due && dayDiff(t.due) === 0).length;
-  const bank = data.cards.find(c => c.type === 'bank' && c.number), last4 = bank ? bank.number.replace(/\D/g, '').slice(-4) : '0000';
   const monName = new Intl.DateTimeFormat('de-DE', { month: 'long' }).format(new Date());
   // Glocken: pro Kategorie eine Kurve, Mitte = wann du aktiv warst, Höhe = wie viel
   const W = 600, B = 150, M = 76, maxT = Math.max(3, ...cats.flatMap(c => cur(c[2]))); // Skala = höchster Tageswert
@@ -807,8 +802,7 @@ function emberDash() {
     <div class="em-crumb">${ic('grid')}<span>Übersicht</span></div></div>`, `<div class="em">
     <div class="em-kpis" role="list">
       <button type="button" class="em-kpi wide" role="listitem" data-act="invlist"><p class="em-l">Rechnungen im ${esc(monName)}</p><p class="em-v" data-n="${mNow}" data-money="${esc(cur0)}">${esc(money(mNow, cur0))}</p>
-        <p class="em-d">${mPct == null ? (n => `<span>${n}</span> ${n === 1 ? 'Beleg' : 'Belege'}`)(invs.filter(i => (i.date || '').startsWith(mon)).length) : `<span class="${mPct > 0 ? 'up' : mPct < 0 ? 'down' : ''}">${mPct > 0 ? '+' : ''}${mPct} %</span> ggü. Vormonat`}</p>
-        <span class="cc-wrap" aria-hidden="true"><span class="cc back"></span><span class="cc"><i class="cc-chip"></i>${ic('wifi')}<em>•••• ${esc(last4)}</em></span></span></button>
+        <p class="em-d">${mPct == null ? (n => `<span>${n}</span> ${n === 1 ? 'Beleg' : 'Belege'}`)(invs.filter(i => (i.date || '').startsWith(mon)).length) : `<span class="${mPct > 0 ? 'up' : mPct < 0 ? 'down' : ''}">${mPct > 0 ? '+' : ''}${mPct} %</span> ggü. Vormonat`}</p></button>
       <button type="button" class="em-kpi" role="listitem" data-go="todos"><p class="em-l">Überfällig</p><p class="em-v" data-n="${over}" data-pad="2">${String(over).padStart(2, '0')}</p><p class="em-d"><span class="${soon ? 'up' : ''}" data-n="${soon}">${soon}</span> bald fällig</p></button>
       <button type="button" class="em-kpi" role="listitem" data-go="todos"><p class="em-l">Offene To-dos</p><p class="em-v" data-n="${openT}" data-pad="2">${String(openT).padStart(2, '0')}</p><p class="em-d"><span class="${todayT ? 'up' : ''}" data-n="${todayT}">${todayT}</span> heute</p></button>
     </div>
@@ -854,11 +848,6 @@ function geminiDash() {
   const audioCount = data.notes.reduce((n, x) => n + (x.audio?.length || 0), 0);
   const noteDots = (data.notes.length ? data.notes.slice(0, 4).map(n => n.color || 'yellow') : ['blue', 'violet', 'pink']);
 
-  const cardsCount = data.cards.length;
-  const topCards = data.cards.slice(0, 2);
-  const c1 = THEMES[topCards[0]?.theme] || ['#38bdf8', '#818cf8'];
-  const c2 = THEMES[topCards[1]?.theme] || ['#a855f7', '#f472b6'];
-
   const invs = data.invoices || [], cur0 = invs[0]?.currency || 'EUR';
   const mon = todayIso().slice(0, 7);
   const mNow = invs.filter(i => (i.date || '').startsWith(mon) && i.currency === cur0).reduce((x, i) => x + (+i.gross || 0), 0);
@@ -878,7 +867,7 @@ function geminiDash() {
   const top = `<div class="gm gm-top">
     <button type="button" class="gm-search" data-act="search">
       <span class="gm-s-ic">${ic('sparkle')}</span>
-      <span>Suchen in Notizen, To-dos, Karten …</span>
+      <span>Suchen in Notizen, To-dos, Belegen …</span>
       <span class="gm-kbds" aria-hidden="true"><kbd>⌘</kbd><kbd>K</kbd></span>
     </button>
   </div>`;
@@ -922,7 +911,6 @@ function geminiDash() {
       <button type="button" class="gm-qbtn" role="listitem" data-add="note" style="--qa:#facc15">${ic('note')}<span>Notiz</span></button>
       <button type="button" class="gm-qbtn" role="listitem" data-add="todo" style="--qa:#fb923c">${ic('check')}<span>To-do</span></button>
       <button type="button" class="gm-qbtn" role="listitem" data-add="invoice" style="--qa:#34d399">${ic('receipt')}<span>Beleg</span></button>
-      <button type="button" class="gm-qbtn" role="listitem" data-add="card" style="--qa:#a78bfa">${ic('card')}<span>3D-Karte</span></button>
       <button type="button" class="gm-qbtn" role="listitem" data-add="timer" style="--qa:#38bdf8">${ic('clock')}<span>Timer</span></button>
     </div>
 
@@ -941,11 +929,11 @@ function geminiDash() {
         <span class="gm-c-meta">${doneToday ? `${doneToday} heute erledigt` : 'Alles griffbereit'}</span>
       </button>
 
-      <button type="button" class="gm-card" role="listitem" data-go="cards" style="--gc:#38bdf8;--i:2">
-        <span class="gm-c-top"><span class="gm-c-ic">${ic('card')}</span><span class="gm-mini-stack" aria-hidden="true"><i style="--ca:${c2[0]};--cb:${c2[1]}"></i><i style="--ca:${c1[0]};--cb:${c1[1]}"></i></span></span>
-        <b class="gm-c-val" data-n="${cardsCount}">${cardsCount}</b>
-        <span class="gm-c-lbl">3D-Karten</span>
-        <span class="gm-c-meta">Tippen zum Drehen</span>
+      <button type="button" class="gm-card" role="listitem" data-add="timer" style="--gc:#38bdf8;--i:2">
+        <span class="gm-c-top"><span class="gm-c-ic">${ic('flame')}</span><span class="gm-badge${strk > 0 ? ' ok' : ''}">${data.settings.timerMin || 25} Min.</span></span>
+        <b class="gm-c-val" data-n="${strk}">${strk}</b>
+        <span class="gm-c-lbl">Fokus & Serie</span>
+        <span class="gm-c-meta">${strk === 1 ? '1 Tag in Folge' : strk > 1 ? `${strk} Tage in Folge` : 'Timer starten'}</span>
       </button>
 
       <button type="button" class="gm-card" role="listitem" data-act="invlist" style="--gc:#34d399;--i:3">
@@ -1014,7 +1002,7 @@ const HOME_DEF = { clock: 'thin', clockColor: 'white', clockSize: 'm', greet: 'h
 const homeCfg = () => { const h = data.settings.home || {}; return { ...HOME_DEF, ...h, show: { ...HOME_DEF.show, ...(h.show || {}) } }; };
 const CLOCK_STYLES = [['thin', 'Fein'], ['bold', 'Kräftig'], ['rounded', 'Rund'], ['mono', 'Digital'], ['serif', 'Klassisch'], ['outline', 'Kontur'], ['stack', 'Gestapelt']];
 const GREET_STYLES = [['heavy', 'Kräftig'], ['thin', 'Fein'], ['rounded', 'Rund'], ['serif', 'Klassisch'], ['caps', 'Kapitälchen'], ['mono', 'Digital']];
-const HOME_COLORS = { white: ['#ffffff', '#c9c9d1'], sunset: THEMES.sunset, ocean: THEMES.ocean, lime: THEMES.lime, violet: THEMES.violet, gold: THEMES.gold };
+const HOME_COLORS = { white: ['#ffffff', '#c9c9d1'], sunset: ['#ff8a1f', '#ff2d78'], ocean: ['#2f7bff', '#00d4ff'], lime: ['#2fe06b', '#d4ff3d'], violet: ['#8a4dff', '#ff3bd4'], gold: ['#ffd23f', '#ff8a1f'] };
 const HOME_COLOR_NAMES = { white: 'Weiß', sunset: 'Sonnenuntergang', ocean: 'Ozean', lime: 'Lime', violet: 'Violett', gold: 'Gold' };
 
 function timeHtml(style, t) {
@@ -1662,10 +1650,7 @@ function nextIsland() {
   const el = document.createElement('div');
   el.className = 'island'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
   if (o.color) el.style.setProperty('--a', `var(--${o.color})`);
-  if (o.card) { // wie „Pass hinzugefügt“: die neue Karte springt heraus, darunter zeichnet sich ein Haken
-    el.classList.add('cardisl');
-    el.innerHTML = `<span class="isl-card">${cardMarkup(o.card)}</span><span class="isl-ok"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><b class="isl-ct">${esc(o.title)}</b>`;
-  } else el.innerHTML = `<span class="isl-ic">${ic(o.icon || 'check')}</span><span class="isl-tx"><small>${esc(o.title)}</small><b>${esc(o.text)}</b></span>${
+  el.innerHTML = `<span class="isl-ic">${ic(o.icon || 'check')}</span><span class="isl-tx"><small>${esc(o.title)}</small><b>${esc(o.text)}</b></span>${
     o.actions ? `<span class="isl-act">${o.actions.map((a, i) => `<button type="button" data-i="${i}" aria-label="${esc(a.label)}" style="--a:var(--${a.color})">${ic(a.icon)}</button>`).join('')}</span>` : ''}`;
   document.body.append(el); void el.offsetWidth; el.classList.add('in'); buzz([14, 40, 10]); yieldLive();
   let closed = false, y0 = null;
@@ -1720,125 +1705,6 @@ function checkTodoIsland(summary) {
 }
 setInterval(() => checkTodoIsland(false), 30000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && data && Date.now() - islandLast > 15 * 60e3) setTimeout(() => checkTodoIsland(true), 600); });
-
-/* ---------- Visualisierung ---------- */
-let cardsView = lsGet('lumen-cards-view') || 'stack';
-function viewCards() {
-  const isStack = cardsView === 'stack' && data.cards.length > 1;
-  return `${header('Visualisierung')}
-    ${data.cards.length ? `<div class="cview-bar"><p class="sub left">Tippe auf eine Karte für 3D & Rückseite.</p>
-      ${data.cards.length > 1 ? `<div class="seg sm" role="radiogroup" aria-label="Kartenansicht">
-        <button type="button" role="radio" data-cview="stack" aria-checked="${cardsView === 'stack'}">Stapel</button>
-        <button type="button" role="radio" data-cview="grid" aria-checked="${cardsView === 'grid'}">Raster</button>
-      </div>` : ''}</div>
-    <div class="${isStack ? 'cwallet' : 'cgrid'}" style="--n:${data.cards.length}">${data.cards.map((c, i) => `<button class="cardmini" data-card="${c.id}" style="--ci:${i}" aria-label="${esc(c.name || 'Karte')} öffnen">${cardMarkup(c)}</button>`).join('')}</div>`
-      : emptyState('card', 'Noch keine Karten', 'Füge Bankkarten, Kundenkarten oder E-Mail-Konten hinzu – sie schweben dann in 3D.')}`;
-}
-
-function openViewer(id) {
-  const c = data.cards.find(x => x.id === id); if (!c) return;
-  const info = c.type === 'member'
-    ? [['Geschäft', c.name], ['Mitgliedsnr.', c.member, true], ['Inhaber', c.holder]]
-    : c.type === 'mail'
-    ? [['Anbieter', c.name], ['E-Mail', c.email, true], ['Passwort', c.pass, 'secret']]
-    : [['Bank', c.name], ['Kartennummer', c.number ? c.number.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim() : c.last4 && '•••• ' + c.last4, !!c.number, c.number?.replace(/\s/g, '')],
-       ['IBAN', c.iban && c.iban.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim(), true, c.iban?.replace(/\s/g, '')], ['Inhaber', c.holder], ['Gültig bis', c.exp], ['Netzwerk', c.network]];
-  let stop;
-  const el = openSheet(`
-    <div class="sheet-top">
-      <button class="iconbtn" data-close aria-label="Zurück">${ic('back')}</button><span class="grow"></span>
-      <button class="iconbtn" id="edit" aria-label="Bearbeiten">${ic('edit')}</button>
-      <button class="iconbtn" id="del" aria-label="Karte löschen">${ic('trash')}</button>
-    </div>
-    <div class="stage" id="stage" tabindex="0" aria-label="3D-Karte. Ziehen zum Drehen, Tippen oder Enter zum Umdrehen.">
-      ${cardMarkup(c, '3d')}<div class="floor" style="--a:${THEMES[c.theme]?.[1] || '#ff2d78'}"></div>
-    </div>
-    <p class="hint">Ziehen zum Drehen · Tippen zum Umdrehen</p>
-    <div class="pills info">
-       ${info.filter(i => i[1]).map(([k, v, copy, raw]) => `<div class="pill${copy ? ' wide' : ''}"><span class="clip"><small>${k}</small>${copy === 'secret' ? `<span class="pwsec" data-secret="${esc(v)}">••••••••</span>` : esc(v)}</span>${copy === 'secret' ? `<button class="iconbtn sm" data-reveal aria-label="Passwort anzeigen">${ic('eye')}</button>` : ''}${copy ? `<button class="iconbtn sm" data-copy="${esc(raw || v)}" aria-label="${k} kopieren">${ic('copy')}</button>` : ''}</div>`).join('')}
-      ${c.note ? `<div class="pill wide"><span class="clip multi"><small>Notiz</small>${esc(c.note)}</span></div>` : ''}
-    </div>`, { label: 'Karte ansehen', cls: 'viewer', onClose: () => stop?.() });
-  stop = mountViewer($('#stage', el));
-  $('#edit', el).addEventListener('click', () => { history.back(); setTimeout(() => openCardForm(c.id), 300); });
-  $('#del', el).addEventListener('click', async () => {
-    if (!(await dialog({ title: 'Karte löschen?', body: 'Das kann nicht rückgängig gemacht werden.', ok: 'Löschen', danger: true }))) return;
-    data.cards = data.cards.filter(x => x.id !== c.id); save(); history.back(); toast('Karte gelöscht');
-  });
-  el.querySelectorAll('[data-reveal]').forEach(b => b.addEventListener('click', () => {
-    const s = b.closest('.pill').querySelector(".pwsec"), on = s.dataset.on === '1';
-    s.textContent = on ? '••••••••' : s.dataset.secret; s.dataset.on = on ? '0' : '1';
-    b.setAttribute('aria-label', on ? 'Passwort anzeigen' : 'Passwort verbergen');
-  }));
-  el.querySelectorAll('[data-copy]').forEach(b => b.addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(b.dataset.copy); toast('Kopiert'); } catch { toast('Kopieren nicht möglich'); }
-  }));
-}
-
-const WARN_CARD = 'Alles bleibt verschlüsselt auf deinem Handy. PIN und Prüfnummer (CVV) gibt es hier bewusst nicht – die merkst du dir besser selbst.';
-function openCardForm(id, type) {
-  const orig = data.cards.find(x => x.id === id);
-  const c = orig ? { ...orig } : { id: uid(), type: type || 'bank', theme: type === 'mail' ? 'ocean' : type === 'member' ? 'lime' : 'sunset', name: '', holder: '', number: '', iban: '', exp: '', network: 'Visa', member: '', email: '', pass: '', note: '' };
-  const el = openSheet(`
-    <div class="sheet-top">
-      <button class="iconbtn" data-close aria-label="Abbrechen">${ic('x')}</button>
-      <h2 class="grow center">${orig ? 'Karte bearbeiten' : 'Neue Karte'}</h2>
-      <button class="btn primary sm" id="save">Sichern</button>
-    </div>
-    <div class="preview" id="pv"></div>
-    <div class="seg" role="radiogroup" aria-label="Art der Karte">
-      <button role="radio" data-type="bank">Bankkarte</button><button role="radio" data-type="member">Kundenkarte</button><button role="radio" data-type="mail">E-Mail</button>
-    </div>
-    <form id="cf" class="form"></form>
-    <div class="swatches big" role="radiogroup" aria-label="Design">
-      ${Object.entries(THEMES).map(([k, [a, b]]) => `<button type="button" role="radio" data-theme="${k}" aria-label="${k}" style="background:linear-gradient(135deg,${a},${b})"></button>`).join('')}
-    </div>
-    <p class="warn">${ic('shield')}<span>Alles bleibt verschlüsselt auf deinem Handy. PIN und Prüfnummer (CVV) gibt es hier bewusst nicht – die merkst du dir besser selbst.</span></p>
-    <p class="err" id="ferr" role="alert"></p>`, { label: c.name || 'Karte' , cls: 'form-sheet' });
-
-  const F = {
-    bank: [['name', 'Bank / Name der Karte', 'text', 'z. B. Sparkasse'], ['holder', 'Inhaber', 'text', 'Name auf der Karte'],
-           ['number', 'Kartennummer', 'numeric', '1234 5678 9012 3456', 23], ['iban', 'IBAN', 'text', 'DE00 0000 0000 0000 0000 00', 42],
-           ['exp', 'Gültig bis', 'numeric', 'MM/JJ', 5], ['network', 'Netzwerk', 'select'], ['note', 'Notiz (Rückseite)', 'area', 'z. B. Sperr-Notruf 116 116']],
-    mail: [['name', 'Anbieter', 'text', 'z. B. Gmail'], ['email', 'E-Mail-Adresse', 'email', 'name@beispiel.de'],
-           ['pass', 'Passwort', 'secret', ''], ['note', 'Notiz (Rückseite)', 'area', '']],
-    member: [['name', 'Geschäft', 'text', 'z. B. Fitnessstudio'], ['holder', 'Inhaber', 'text', 'Dein Name'],
-             ['member', 'Mitgliedsnummer', 'text', ''], ['note', 'Notiz (Rückseite)', 'area', '']],
-  };
-  const renderForm = () => {
-    $('#cf', el).innerHTML = F[c.type].map(([k, label, kind, ph, max]) => {
-      if (kind === 'select') return `<label class="field"><span>${label}</span><select name="${k}">${['Visa', 'Mastercard', 'Girocard', 'Amex', 'Andere'].map(o => `<option ${c[k] === o ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
-      if (kind === 'email') return `<label class="field"><span>${label}</span><input name="${k}" type="email" inputmode="email" value="${esc(c[k])}" placeholder="${ph}" autocomplete="off" autocapitalize="off" spellcheck="false"></label>`;
-      if (kind === 'secret') return `<label class="field"><span>${label}</span><input name="${k}" type="password" value="${esc(c[k])}" placeholder="${ph}" autocomplete="new-password" autocapitalize="off" spellcheck="false"></label>`;
-      if (kind === 'area') return `<label class="field"><span>${label}</span><textarea name="${k}" rows="2" placeholder="${ph}">${esc(c[k])}</textarea></label>`;
-      return `<label class="field"><span>${label}</span><input name="${k}" value="${esc(c[k])}" placeholder="${ph}" ${kind === 'numeric' ? 'inputmode="numeric"' : ''} ${max ? `maxlength="${max}"` : ''} autocomplete="off"></label>`;
-    }).join('');
-    el.querySelectorAll('[data-type]').forEach(b => b.setAttribute('aria-checked', b.dataset.type === c.type));
-    const w = el.querySelector('.warn span');
-    if (w) w.textContent = c.type === 'mail' ? 'Alles bleibt verschlüsselt auf deinem Handy. Das Passwort wird nirgends hingeschickt und nur angezeigt, wenn du es in der Karte einblendest.' : WARN_CARD;
-  };
-  const renderPrev = () => {
-    $('#pv', el).innerHTML = cardMarkup(c);
-    el.querySelectorAll('[data-theme]').forEach(b => b.setAttribute('aria-checked', b.dataset.theme === c.theme));
-  };
-  renderForm(); renderPrev();
-  $('#cf', el).addEventListener('input', e => {
-    const t = e.target;
-    if (t.name === 'number') t.value = t.value.replace(/\D/g, '').slice(0, 19).replace(/(.{4})/g, '$1 ').trim();
-    if (t.name === 'iban') t.value = t.value.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 34).replace(/(.{4})/g, '$1 ').trim();
-    if (t.name === 'exp') { let v = t.value.replace(/\D/g, '').slice(0, 4); if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2); t.value = v; }
-    c[t.name] = t.value; renderPrev();
-  });
-  el.querySelectorAll('[data-type]').forEach(b => b.addEventListener('click', () => { c.type = b.dataset.type; renderForm(); renderPrev(); fadeIn($('#cf', el)); popEl($('#pv', el)); }));
-  el.querySelectorAll('[data-theme]').forEach(b => b.addEventListener('click', () => { c.theme = b.dataset.theme; renderPrev(); popEl($('#pv', el)); }));
-  $('#save', el).addEventListener('click', () => {
-    const err = $('#ferr', el);
-    if (!c.name.trim()) return (err.textContent = 'Gib der Karte einen Namen.');
-    if (c.type === 'mail' && !String(c.email).trim()) return (err.textContent = 'Gib die E-Mail-Adresse ein.');
-    if (orig) Object.assign(orig, c); else data.cards.push(c);
-    save(); history.back(); if (orig) toast('Karte aktualisiert'); else island({ card: c, title: 'Karte hinzugefügt', ms: 2600 });
-    if (!orig) setTimeout(() => openViewer(c.id), 320);
-  });
-}
 
 /* ---------- Einstellungen ---------- */
 function openSettings(origin) {
@@ -1946,7 +1812,7 @@ function openSettings(origin) {
   });
   $('#imp', el).addEventListener('change', importFile);
   $('#wipe', el).addEventListener('click', async () => {
-    const ok = await dialog({ title: 'Alles löschen?', body: 'Alle Notizen, To-dos und Karten auf diesem Handy werden endgültig gelöscht.', ok: 'Endgültig löschen', danger: true });
+    const ok = await dialog({ title: 'Alles löschen?', body: 'Alle Notizen, To-dos und Rechnungen auf diesem Handy werden endgültig gelöscht.', ok: 'Endgültig löschen', danger: true });
     if (!ok) return;
     closeAllSheets(); await Vault.wipe(); data = null; renderSetup();
   });
@@ -2509,16 +2375,15 @@ function openSpot() {
     if (!q) { // Vorschläge
       box.innerHTML = group('Vorschläge', [
         row('new:note', 'note', 'yellow', 'Neue Notiz', '', k++), row('new:todo', 'check', 'orange', 'Neues To-do', '', k++),
-        row('new:timer', 'clock', 'pink', 'Fokus-Timer starten', '', k++), row('new:card', 'card', 'violet', 'Karte hinzufügen', '', k++),
+        row('new:timer', 'clock', 'pink', 'Fokus-Timer starten', '', k++), row('new:invoice', 'receipt', 'green', 'Rechnung hinzufügen', '', k++),
       ]) + group('Zuletzt bearbeitet', [...data.notes].sort((a, b) => b.updated - a.updated).slice(0, 3).map(n => row('note:' + n.id, n.audio?.length ? 'mic' : 'note', n.color, esc(noteTitle(n)), esc(fmtDay(n.updated)), k++)));
       return;
     }
     const has = (...xs) => xs.some(x => fold(x).includes(q));
     const notes = data.notes.filter(n => has(n.title, n.body)).slice(0, 6).map(n => row('note:' + n.id, n.audio?.length ? 'mic' : 'note', n.color, hl(noteTitle(n), q), hl(snip(n.title && fold(n.title).includes(q) ? n.body : n.body || '', q), q), k++));
     const todos = data.todos.filter(t => has(t.text)).slice(0, 6).map(t => row('todo:' + t.id, t.done ? 'check' : 'check', t.done ? 'green' : 'orange', hl(t.text, q), t.done ? 'Erledigt' : t.due ? esc(fmtDue(t.due, t.time)) : 'Offen', k++));
-    const cards = data.cards.filter(c => has(c.name, c.holder, c.email, c.member)).slice(0, 6).map(c => row('card:' + c.id, c.type === 'mail' ? 'mail' : c.type === 'member' ? 'bag' : 'card', 'violet', hl(c.name, q), hl(c.type === 'mail' ? c.email : c.holder, q), k++));
     const invs = (data.invoices || []).filter(i => has(i.vendor, i.number, i.note)).slice(0, 6).map(i => row('inv:' + i.id, 'receipt', 'green', hl(i.vendor, q), esc(money(i.gross, i.currency)) + (i.status === 'paid' ? ' · Bezahlt' : ''), k++));
-    const html = group('Notizen', notes) + group('To-dos', todos) + group('Karten', cards) + group('Rechnungen', invs);
+    const html = group('Notizen', notes) + group('To-dos', todos) + group('Rechnungen', invs);
     box.innerHTML = html || `<div class="spot-none">${ic('search')}<b>Keine Treffer</b><p>Nichts enthält „${esc(input.value.trim())}“.</p></div>`;
   };
   paint();
@@ -2530,9 +2395,8 @@ function openSpot() {
     history.back(); // Suche schließen, dann öffnen
     setTimeout(() => {
       if (!data) return;
-      if (kind === 'new') return id === 'note' ? openNote() : id === 'todo' ? openQuickTodo() : id === 'timer' ? openTimerSheet() : openCardForm();
+      if (kind === 'new') return id === 'note' ? openNote() : id === 'todo' ? openQuickTodo() : id === 'timer' ? openTimerSheet() : openInvoiceForm();
       if (kind === 'note') return openNote(id);
-      if (kind === 'card') return openViewer(id);
       if (kind === 'inv') return openInvoice(id);
       if (kind === 'todo') {
         if (tab !== 'todos') switchTab('todos');
@@ -2777,22 +2641,19 @@ app.addEventListener('click', e => {
   if (b.dataset.tab) return switchTab(b.dataset.tab);
   if (b.dataset.go) return switchTab(b.dataset.go);
   if (b.dataset.note) return openNote(b.dataset.note);
-  if (b.dataset.cview) { if (b.dataset.cview === cardsView) return; cardsView = b.dataset.cview; lsSet('lumen-cards-view', cardsView); buzz(6); renderTab(); staggerScreen(); return; }
-  if (b.dataset.card) return openViewer(b.dataset.card);
   if (b.dataset.inv) return openInvoice(b.dataset.inv);
   if (b.dataset.tdue) return pickTodoDate(b.dataset.tdue);
   if (b.dataset.toggle) return toggleTodo(b.dataset.toggle, b);
   if (b.dataset.deltodo) return removeTodo(b.dataset.deltodo, b.closest('.todo'));
   if (b.dataset.new === 'note') return openNote();
-  if (b.dataset.new === 'card') return openCardForm();
   if (b.dataset.new === 'todo') { tab = 'todos'; renderTab(); return $('#tt').focus(); }
   if (b.dataset.add) {
     const k = b.dataset.add;
     setMenu(false); $('#fab').focus({ preventScroll: true });
-    setTimeout(() => (k === 'timer' ? openTimerSheet() : k === 'note' ? openNote() : k === 'todo' ? openQuickTodo() : k === 'invoice' ? openInvoiceForm() : openCardForm(undefined, k.startsWith('card:') ? k.slice(5) : undefined)), 150);
+    setTimeout(() => (k === 'timer' ? openTimerSheet() : k === 'note' ? openNote() : k === 'todo' ? openQuickTodo() : openInvoiceForm()), 150);
     return;
   }
-  if (b.id === 'fab') { if (tab === 'home' || tab === 'cards') return setMenu(!menuOpen, e.detail === 0); if (tab === 'notes') openNote(); else if (tab === 'cards') openCardForm(); else if (tab === 'todos') $('#tt').focus(); return; }
+  if (b.id === 'fab') { if (tab === 'home') return setMenu(!menuOpen, e.detail === 0); if (tab === 'notes') openNote(); else if (tab === 'todos') $('#tt').focus(); return; }
   const act = b.dataset.act;
   if (act === 'lock') return lockNow();
   if (act === 'settings') return openSettings(b);

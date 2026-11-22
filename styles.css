@@ -1213,7 +1213,7 @@ body.act-open .live:not(.act), body.has-act:has(.live:not(.act).open) .live.act 
 .em-kpi { position: relative; flex: none; width: 46%; min-height: 120px; padding: 18px 18px 16px; border-radius: 16px; text-align: left; overflow: hidden; scroll-snap-align: start;
   background: var(--s1); box-shadow: inset 0 0 0 1px var(--line), inset 0 1px 0 rgba(255, 255, 255, .03); transition: background-color .15s; animation: rise .7s var(--ease) backwards; }
 .em-kpi:nth-child(2) { animation-delay: .06s; } .em-kpi:nth-child(3) { animation-delay: .12s; }
-.em-kpi.wide { width: 84%; padding-right: 96px; }
+.em-kpi.wide { width: 72%; }
 .em-kpi:active { background: var(--s2); }
 .em-l { margin: 0; font-size: .85rem; color: var(--t2); }
 .em-v { margin: 8px 0 6px; font-size: 1.9rem; font-weight: 500; letter-spacing: -.03em; line-height: 1; color: var(--t); font-variant-numeric: tabular-nums; position: relative; z-index: 1; }
@@ -2227,59 +2227,7 @@ body.act-open .live:not(.act), body.has-act:has(.live:not(.act).open) .live.act 
 :where([data-theme="gemini"]) .heat-grid i.l3 { background: color-mix(in srgb, var(--gp1) 76%, var(--s1)); box-shadow: 0 0 9px color-mix(in srgb, var(--gp1) 35%, transparent); }
 :where([data-theme="gemini"]) .heat-grid i.l4 { background: var(--gm-prism); box-shadow: 0 0 12px color-mix(in srgb, var(--gp2) 55%, transparent); }
 
-/* 4) Visualisierung: Apple-Wallet-Stapel & Code-128 Barcode auf 3D-Kundenkarten */
-.cview-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-.cview-bar .sub.left { margin-bottom: 0; font-size: .86rem; }
-.seg.sm { flex: none; padding: 3px; width: auto; }
-.seg.sm button { height: 32px; padding: 0 12px; font-size: .78rem; }
-
-.cwallet {
-  display: flex;
-  flex-direction: column;
-  padding: 6px 0 32px;
-  perspective: 900px;
-}
-.cwallet .cardmini {
-  position: relative;
-  width: 100%;
-  margin-top: -108px;
-  transform-origin: center top;
-  z-index: calc(1 + var(--ci, 0));
-  transition: transform 360ms cubic-bezier(.22, 1, .36, 1), filter 260ms, box-shadow 260ms;
-}
-.cwallet .cardmini:first-child { margin-top: 0; }
-.cwallet .cardmini .cardflat {
-  box-shadow: 0 -10px 28px rgba(0, 0, 0, .58), 0 16px 36px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .28);
-}
-.cwallet .cardmini:hover,
-.cwallet .cardmini:focus-visible { transform: translateY(-22px) scale(1.015); z-index: 20; }
-.cwallet .cardmini:active { transform: translateY(-10px) scale(.985); }
-
-/* 3D Kundenkarten-Rückseite mit echtem Barcode */
-.memberback {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 20px 22px 20px;
-  background: linear-gradient(155deg, color-mix(in srgb, var(--a) 22%, #14151c), #090a0e);
-}
-.cb-mhead { display: flex; align-items: center; justify-content: space-between; font-size: .76rem; font-weight: 700; color: rgba(255, 255, 255, .82); letter-spacing: .04em; }
-.cb-mhead small { font-family: var(--mono, ui-monospace, monospace); font-size: .64rem; padding: 2px 7px; border-radius: 999px; background: rgba(255, 255, 255, .12); color: #fff; }
-.cb-code {
-  background: #ffffff;
-  color: #09090b;
-  border-radius: 12px;
-  padding: 12px 12px 8px;
-  display: grid;
-  gap: 5px;
-  justify-items: center;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, .45);
-}
-.cb-code svg { width: 100%; height: 48px; display: block; fill: #09090b; }
-.cb-code span { font-family: var(--mono, ui-monospace, monospace); font-size: .72rem; font-weight: 600; letter-spacing: .16em; color: #18181b; }
-.cb-mnote { margin: 0; font-size: .72rem; color: rgba(255, 255, 255, .7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* 5) Fokus-Timer Ambient Soundscape UI */
+/* 4) Fokus-Timer Ambient Soundscape UI */
 .tsnd-wrap { display: grid; gap: 8px; margin: 2px 0 4px; }
 .tsnd-lbl { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; font-weight: 600; color: var(--t2); }
 .tsnd-lbl .ic { width: 15px; height: 15px; color: var(--blue); }
