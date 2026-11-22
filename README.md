@@ -4,6 +4,7 @@ Private Notizen, To-dos und Rechnungen – komplett schwarz, knallige Farben, ve
 
 ## Funktionen
 
+- **Zentrale (Graph):** Obsidian-inspiriertes Gedankennetz mit drehendem Lumen-Zentralgehirn in der Mitte — Übertitel (z. B. *Steuern*) erstellen, Abschnitte abzweigen, Knoten frei ziehen, zoomen und direkt reinschreiben
 - **Notizen** mit Farben, Anheften, `#Tags`, interaktiven Checklisten (`[ ]`), Suche und **Sprachnotizen** (Aufnahme und Wiedergabe als Insel oben)
 - **To-dos** zum Abhaken, Wischen, Gedrückthalten (Kontextmenü), **Wiederholung** (täglich/wöchentlich/monatlich), Erledigt-Serie & 28-Tage-Heatmap
 - **Fokus-Timer** als schwebende Insel mit optionalem Offline-Ambient-Sound (Regen, Rauschen, Klang)

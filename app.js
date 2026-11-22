@@ -1,4 +1,5 @@
 import { Vault } from './vault.js';
+import { ensureBrain, mountBrain } from './brain.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
@@ -56,6 +57,9 @@ const P = {
   layers: '<path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M3 12l9 4.5 9-4.5"/><path d="M3 16.5L12 21l9-4.5"/>',
   tag: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><circle cx="7" cy="7" r="1.2" fill="currentColor"/>',
   listcheck: '<path d="M4 6l1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17M11 6h9M11 12h9M11 18h9"/>',
+  graph: '<circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M9.6 10.2L6.6 7.5M14.4 10.2L17.4 7.5M14.2 14.2L16.6 16.6"/>',
+  target: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
+  minus: '<path d="M5 12h14"/>',
 };
 const ic = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
 
@@ -618,6 +622,7 @@ const TABS = [
   { id: 'home', label: 'Home', icon: 'home', color: 'white' },
   { id: 'notes', label: 'Notizen', icon: 'note', color: 'yellow' },
   { id: 'todos', label: 'To-dos', icon: 'check', color: 'orange' },
+  { id: 'brain', label: 'Graph', icon: 'graph', color: 'violet' },
 ];
 
 function renderMain() {
@@ -646,14 +651,17 @@ function menuHtml() {
   const item = (add, label, icon, i, color) => `<button class="fm-item" role="menuitem" data-add="${add}" style="--i:${i};--a:var(--${color})"><span>${label}</span><span class="fm-ic">${ic(icon)}</span></button>`;
   return item('timer', 'Fokus-Timer', 'clock', 3, 'pink') + item('invoice', 'Rechnung', 'receipt', 2, 'green') + item('todo', 'To-do', 'check', 1, 'orange') + item('note', 'Notiz', 'note', 0, 'yellow');
 }
+let brainCleanup = null, brainSelect = null;
 function renderTab() {
   const screen = $('#screen'); if (!screen || !data) return;
-  if (!{ home: 1, notes: 1, todos: 1 }[tab]) tab = 'home';
+  brainCleanup?.(); brainCleanup = null;
+  if (!{ home: 1, notes: 1, todos: 1, brain: 1 }[tab]) tab = 'home';
   setMenu(false);
   resetNoteMode();
   const fm = $('#fabmenu'); if (fm) fm.innerHTML = menuHtml();
   $('#glowwrap')?.classList.toggle('on', tab === 'home');
-  screen.innerHTML = { home: viewHome, notes: viewNotes, todos: viewTodos }[tab]();
+  screen.classList.toggle('is-brain', tab === 'brain');
+  screen.innerHTML = { home: viewHome, notes: viewNotes, todos: viewTodos, brain: viewBrain }[tab]();
   if (countNext) { countNext = false; countUp(screen); }
   document.querySelectorAll('[data-tab]').forEach(b => b.dataset.tab === tab ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
   const fab = $('#fab');
@@ -665,6 +673,10 @@ function renderTab() {
   else { fab.removeAttribute('aria-haspopup'); fab.removeAttribute('aria-expanded'); }
   if (tab === 'notes') { bindNoteSearch(); bindNoteEdit(); }
   if (tab === 'todos') bindTodoForm();
+  if (tab === 'brain') {
+    const sel = brainSelect; brainSelect = null;
+    brainCleanup = mountBrain(screen, { data, save, ic, esc, toast, buzz, dialog, reduced, COLORS, openBrainNote, uid, initialSelect: sel });
+  }
 }
 
 function staggerScreen() {
@@ -847,6 +859,7 @@ function geminiDash() {
   const notesCount = data.notes.length;
   const audioCount = data.notes.reduce((n, x) => n + (x.audio?.length || 0), 0);
   const noteDots = (data.notes.length ? data.notes.slice(0, 4).map(n => n.color || 'yellow') : ['blue', 'violet', 'pink']);
+  const br = ensureBrain(data), brTopics = br.topics.length, brSecs = br.topics.reduce((s, t) => s + (t.sections?.length || 0), 0);
 
   const invs = data.invoices || [], cur0 = invs[0]?.currency || 'EUR';
   const mon = todayIso().slice(0, 7);
@@ -910,6 +923,7 @@ function geminiDash() {
     <div class="gm-ribbon" role="list" aria-label="Schnellaktionen">
       <button type="button" class="gm-qbtn" role="listitem" data-add="note" style="--qa:#facc15">${ic('note')}<span>Notiz</span></button>
       <button type="button" class="gm-qbtn" role="listitem" data-add="todo" style="--qa:#fb923c">${ic('check')}<span>To-do</span></button>
+      <button type="button" class="gm-qbtn" role="listitem" data-go="brain" style="--qa:#a78bfa">${ic('graph')}<span>Graph</span></button>
       <button type="button" class="gm-qbtn" role="listitem" data-add="invoice" style="--qa:#34d399">${ic('receipt')}<span>Beleg</span></button>
       <button type="button" class="gm-qbtn" role="listitem" data-add="timer" style="--qa:#38bdf8">${ic('clock')}<span>Timer</span></button>
     </div>
@@ -929,11 +943,11 @@ function geminiDash() {
         <span class="gm-c-meta">${doneToday ? `${doneToday} heute erledigt` : 'Alles griffbereit'}</span>
       </button>
 
-      <button type="button" class="gm-card" role="listitem" data-add="timer" style="--gc:#38bdf8;--i:2">
-        <span class="gm-c-top"><span class="gm-c-ic">${ic('flame')}</span><span class="gm-badge${strk > 0 ? ' ok' : ''}">${data.settings.timerMin || 25} Min.</span></span>
-        <b class="gm-c-val" data-n="${strk}">${strk}</b>
-        <span class="gm-c-lbl">Fokus & Serie</span>
-        <span class="gm-c-meta">${strk === 1 ? '1 Tag in Folge' : strk > 1 ? `${strk} Tage in Folge` : 'Timer starten'}</span>
+      <button type="button" class="gm-card" role="listitem" data-go="brain" style="--gc:#38bdf8;--i:2">
+        <span class="gm-c-top"><span class="gm-c-ic">${ic('graph')}</span><span class="gm-badge">${brSecs} ${brSecs === 1 ? 'Abschnitt' : 'Abschnitte'}</span></span>
+        <b class="gm-c-val" data-n="${brTopics}">${brTopics}</b>
+        <span class="gm-c-lbl">Zentrale · Graph</span>
+        <span class="gm-c-meta">${brTopics ? 'Themen verknüpft' : 'Thema anlegen'}</span>
       </button>
 
       <button type="button" class="gm-card" role="listitem" data-act="invlist" style="--gc:#34d399;--i:3">
@@ -1706,6 +1720,137 @@ function checkTodoIsland(summary) {
 setInterval(() => checkTodoIsland(false), 30000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && data && Date.now() - islandLast > 15 * 60e3) setTimeout(() => checkTodoIsland(true), 600); });
 
+/* ---------- Zentrale / Graph (Obsidian-inspiriertes Gedankennetz) ---------- */
+function viewBrain() {
+  return `<div class="br-wrap">
+    ${header('Zentrale')}
+    <div class="br-cmd-wrap">
+      <form class="br-cmd" id="brForm" autocomplete="off">
+        <div class="br-mode" id="brModeChip" hidden></div>
+        <input id="brInput" placeholder="Übertitel oder „Thema / Abschnitt“ …" aria-label="Thema oder Abschnitt hinzufügen" maxlength="90" enterkeyhint="done">
+        <button type="submit" class="br-go" id="brAdd" aria-label="Hinzufügen">${ic('plus')}</button>
+      </form>
+      <div class="br-suggest" id="brSuggest" hidden></div>
+    </div>
+    <div class="br-stage" id="brStage">
+      <div class="br-world" id="brWorld">
+        <svg class="br-svg" id="brSvg" viewBox="-1200 -1200 2400 2400" aria-hidden="true"></svg>
+        <button type="button" class="br-core" id="brCore" aria-label="Lumen Zentrale zentrieren">
+          <span class="br-core-aura" aria-hidden="true"></span>
+          <span class="br-core-orbit" aria-hidden="true"></span>
+          <span class="br-core-orb" aria-hidden="true"></span>
+          <span class="br-core-star" aria-hidden="true">${ic('sparkle')}</span>
+          <span class="br-core-lbl">Lumen</span>
+        </button>
+        <div class="br-nodes" id="brNodes"></div>
+      </div>
+      <p class="br-hint" id="brHint">Gib oben einen Übertitel ein (z. B. <b>Steuern</b>) – er verbindet sich direkt mit der Zentrale.</p>
+      <div class="br-tools" aria-label="Ansicht steuern">
+        <button type="button" class="iconbtn sm" id="brZoomIn" aria-label="Vergrößern">${ic('plus')}</button>
+        <button type="button" class="iconbtn sm" id="brZoomOut" aria-label="Verkleinern">${ic('minus')}</button>
+        <button type="button" class="iconbtn sm" id="brReset" aria-label="Zentrieren">${ic('target')}</button>
+      </div>
+      <div class="br-dock" id="brDock" role="region" aria-label="Ausgewähltes Thema" inert></div>
+    </div>
+  </div>`;
+}
+
+function openBrainNote(topicId, sectionId, onChange) {
+  const br = ensureBrain(data);
+  const topic = br.topics.find(t => t.id === topicId);
+  if (!topic) return;
+  const sec = sectionId ? (topic.sections || []).find(s => s.id === sectionId) : null;
+  if (sectionId && !sec) return;
+  const target = sec || topic;
+
+  const el = openSheet(`
+    <div class="sheet-top">
+      <button class="iconbtn" data-close aria-label="Zurück">${ic('back')}</button>
+      <span class="br-crumb">${ic('graph')}<span>${esc(topic.title)}${sec ? ` › ${esc(sec.title)}` : ''}</span></span>
+      <span class="grow"></span>
+      ${sec ? `<button class="iconbtn" id="bdel" aria-label="Abschnitt löschen">${ic('trash')}</button>` : ''}
+      <button class="btn primary sm" id="bsave">Sichern</button>
+    </div>
+    <input class="ntitle" id="bt" placeholder="${sec ? 'Abschnitt-Titel' : 'Übertitel'}" aria-label="Titel" value="${esc(target.title)}">
+    <div class="nquick" role="toolbar" aria-label="Einfügen">
+      <button type="button" class="dchip" data-nins="check">${ic('listcheck')}Checkliste</button>
+      <button type="button" class="dchip" data-nins="tag">${ic('tag')}Tag</button>
+      <button type="button" class="dchip" data-nins="hr">— Linie</button>
+    </div>
+    <div class="nchecks" id="bchecks" aria-label="Checkliste"></div>
+    <textarea class="nbody" id="bb" placeholder="Schreib deine Gedanken zu „${esc(target.title)}“ …" aria-label="Inhalt">${esc(target.body || '')}</textarea>
+    <p class="saved">${ic('lock')}Verbunden mit der Zentrale · AES-256 verschlüsselt</p>`, {
+      label: target.title || 'Abschnitt',
+      cls: 'editor',
+      onClose: () => { save(); onChange?.(); },
+    });
+
+  el.style.setProperty('--a', `var(--${topic.color || 'blue'})`);
+  const bt = $('#bt', el), bb = $('#bb', el), chkBox = $('#bchecks', el);
+
+  const touch = () => { target.updated = topic.updated = Date.now(); save(); };
+  const renderChecks = () => {
+    const items = noteChecks(target.body);
+    if (!items.length) { chkBox.innerHTML = ''; return; }
+    const doneC = items.filter(x => x.done).length;
+    chkBox.innerHTML = `<div class="nchk-head"><span>Checkliste</span><b>${doneC} / ${items.length}</b></div>
+      <ul class="nchk-list">${items.map(it => `<li class="nchk-row${it.done ? ' done' : ''}">
+        <button type="button" class="chk" role="checkbox" aria-checked="${it.done}" data-cidx="${it.idx}" aria-label="${esc(it.text || 'Punkt')}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4L18 8"/></svg>
+        </button>
+        <span>${esc(it.text || 'Unbenannt')}</span>
+      </li>`).join('')}</ul>`;
+  };
+  renderChecks();
+
+  chkBox.addEventListener('click', e => {
+    const b = e.target.closest('[data-cidx]'); if (!b) return;
+    const idx = +b.dataset.cidx, lines = String(target.body || '').split('\n');
+    if (lines[idx] == null) return;
+    lines[idx] = lines[idx].replace(/^(\s*)\[([ xX])\]/, (_, sp, ch) => `${sp}[${ch.toLowerCase() === 'x' ? ' ' : 'x'}]`);
+    target.body = lines.join('\n'); bb.value = target.body; buzz(8); touch(); renderChecks();
+  });
+
+  el.querySelectorAll('[data-nins]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.nins, v = bb.value, pos = bb.selectionStart ?? v.length;
+    const before = v.slice(0, pos), after = v.slice(bb.selectionEnd ?? pos);
+    const nl = before && !before.endsWith('\n') ? '\n' : '';
+    const ins = k === 'check' ? `${nl}[ ] ` : k === 'tag' ? (before && !/\s$/.test(before) ? ' #' : '#') : `${nl}---\n`;
+    bb.value = before + ins + after;
+    const nextPos = before.length + ins.length;
+    bb.focus(); bb.setSelectionRange(nextPos, nextPos);
+    target.body = bb.value; buzz(6); touch(); renderChecks();
+  }));
+
+  bt.addEventListener('input', e => {
+    const val = e.target.value.trim();
+    if (val) target.title = val.slice(0, 56);
+    touch();
+  });
+  bb.addEventListener('input', e => { target.body = e.target.value; touch(); renderChecks(); });
+
+  $('#bdel', el)?.addEventListener('click', async () => {
+    if (!(await dialog({ title: `„${sec.title}“ löschen?`, body: 'Dieser Abschnitt wird aus dem Thema entfernt.', ok: 'Löschen', danger: true }))) return;
+    const copy = { ...sec };
+    topic.sections = (topic.sections || []).filter(s => s.id !== sec.id);
+    save(); history.back();
+    toast(`„${copy.title}“ gelöscht`, {
+      undo: () => {
+        if (!(topic.sections || []).some(s => s.id === copy.id)) {
+          (topic.sections ||= []).push(copy);
+          save(); onChange?.();
+        }
+      },
+    });
+  });
+
+  $('#bsave', el).addEventListener('click', () => {
+    touch(); buzz(12); history.back(); toast('Gespeichert');
+  });
+
+  if (!target.body) setTimeout(() => bb.focus(), 280);
+}
+
 /* ---------- Einstellungen ---------- */
 function openSettings(origin) {
   const el = openSheet(`
@@ -2382,8 +2527,15 @@ function openSpot() {
     const has = (...xs) => xs.some(x => fold(x).includes(q));
     const notes = data.notes.filter(n => has(n.title, n.body)).slice(0, 6).map(n => row('note:' + n.id, n.audio?.length ? 'mic' : 'note', n.color, hl(noteTitle(n), q), hl(snip(n.title && fold(n.title).includes(q) ? n.body : n.body || '', q), q), k++));
     const todos = data.todos.filter(t => has(t.text)).slice(0, 6).map(t => row('todo:' + t.id, t.done ? 'check' : 'check', t.done ? 'green' : 'orange', hl(t.text, q), t.done ? 'Erledigt' : t.due ? esc(fmtDue(t.due, t.time)) : 'Offen', k++));
+    const brRows = [];
+    ensureBrain(data).topics.forEach(t => {
+      if (has(t.title, t.body)) brRows.push(row('brain:' + t.id, 'graph', t.color || 'violet', hl(t.title, q), `${(t.sections || []).length} Abschnitte`, k++));
+      (t.sections || []).forEach(s => {
+        if (has(s.title, s.body, t.title)) brRows.push(row(`bsec:${t.id}|${s.id}`, 'graph', t.color || 'violet', hl(s.title, q), `${esc(t.title)} · ${hl(snip(s.body || '', q), q)}`, k++));
+      });
+    });
     const invs = (data.invoices || []).filter(i => has(i.vendor, i.number, i.note)).slice(0, 6).map(i => row('inv:' + i.id, 'receipt', 'green', hl(i.vendor, q), esc(money(i.gross, i.currency)) + (i.status === 'paid' ? ' · Bezahlt' : ''), k++));
-    const html = group('Notizen', notes) + group('To-dos', todos) + group('Rechnungen', invs);
+    const html = group('Notizen', notes) + group('Graph', brRows.slice(0, 6)) + group('To-dos', todos) + group('Rechnungen', invs);
     box.innerHTML = html || `<div class="spot-none">${ic('search')}<b>Keine Treffer</b><p>Nichts enthält „${esc(input.value.trim())}“.</p></div>`;
   };
   paint();
@@ -2397,6 +2549,8 @@ function openSpot() {
       if (!data) return;
       if (kind === 'new') return id === 'note' ? openNote() : id === 'todo' ? openQuickTodo() : id === 'timer' ? openTimerSheet() : openInvoiceForm();
       if (kind === 'note') return openNote(id);
+      if (kind === 'brain') { brainSelect = { topicId: id }; return switchTab('brain'); }
+      if (kind === 'bsec') { const [tid, sid] = id.split('|'); brainSelect = { topicId: tid, sectionId: sid }; return switchTab('brain'); }
       if (kind === 'inv') return openInvoice(id);
       if (kind === 'todo') {
         if (tab !== 'todos') switchTab('todos');
