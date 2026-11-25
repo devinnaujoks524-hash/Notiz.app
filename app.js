@@ -7,7 +7,7 @@ const app = $('#app');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 const soundOn = () => { try { return localStorage.getItem('lumen-sound') !== '0'; } catch { return true; } };
-const buzz = ms => { try { if (soundOn()) navigator.vibrate?.(ms); } catch {} };
+const buzz = ms => { try { if (soundOn() && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate?.(ms); } catch {} };
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 // Im Glas-Design nur schieben statt einblenden: Durchsichtigkeit auf einem Behälter würde die Lichtbrechung seiner Glasflächen kurz abschalten
 const fadeIn = el => { if (el && !reduced()) el.animate?.([document.documentElement.dataset.theme === 'glass' ? { transform: 'translateY(8px)' } : { opacity: .35, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)' }); };
@@ -274,7 +274,7 @@ function lgSync() {
 matchMedia('(prefers-reduced-transparency: reduce), (prefers-contrast: more)').addEventListener?.('change', lgSync);
 /* ---------- Glas: Bewegung ---------- */
 // 1) Gleitende Auswahl: In Tab-Leiste und Umschaltern wandert ein Glastropfen zum gewählten Feld, dehnt sich dabei und federt nach.
-const GLIDE_SEL = 'nav.tabs, .seg';
+const GLIDE_SEL = '.seg';
 const glass = { on: false, mo: null, ro: null };
 function glidePlace(box, animate) {
   const g = box.querySelector(':scope > .glide'); if (!g) return;
@@ -2462,7 +2462,7 @@ function openTimerSheet() {
   });
 }
 
-addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && data) { e.preventDefault(); if (!$('.sheet.spot')) openSpot(); } });
+addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && data) { e.preventDefault(); if (glassyRail) glassyRail.focusSearch(); else if (!$('.sheet.spot')) openSpot(); } });
 
 /* ---------- Kontextmenü: To-do gedrückt halten (wie bei iOS) ---------- */
 // Die Zeile hebt sich aus dem weichgezeichneten Hintergrund, darunter klappt ein Menü auf.
@@ -2603,7 +2603,7 @@ function openSpot() {
     if (y0 == null) return; y0 = null;
     const home = $('#screen .home');
     if (home) { home.style.transition = 'transform .4s var(--ease)'; home.style.transform = ''; setTimeout(() => { home.style.transition = ''; }, 400); }
-    if (pulled > 90) { buzz(10); openSpot(); }
+    if (pulled > 90) { buzz(10); glassyRail ? glassyRail.focusSearch() : openSpot(); }
   });
 }
 
@@ -2842,7 +2842,7 @@ app.addEventListener('click', e => {
   if (act === 'lock') return lockNow();
   if (act === 'settings') return openSettings(b);
   if (act === 'customize') return openCustomize(b);
-  if (act === 'search') return openSpot();
+  if (act === 'search') return glassyRail ? glassyRail.focusSearch() : openSpot();
   if (act === 'invlist') return openInvoiceList();
   if (act === 'bio') return enrollBio().then(renderTab);
   if (act === 'cleardone') {

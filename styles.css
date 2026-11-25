@@ -2873,11 +2873,19 @@ header.top h1 { margin-right: auto; }
 .gs-search-clr .ic { width: 12px; height: 12px; }
 
 /* Live-Suchergebnisse direkt im Quick-Menü */
-.gs-main-view { display: flex; flex-direction: column; gap: 8px; }
+.gs-main-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
 .gs-results {
   display: grid;
   gap: 4px;
   margin-right: 12px;
+  touch-action: pan-y;
   animation: rise .24s cubic-bezier(.22, 1, .36, 1);
 }
 .gs-res-h { max-height: 24px !important; opacity: 1 !important; padding: 2px 4px 4px !important; }
@@ -2943,19 +2951,22 @@ header.top h1 { margin-right: auto; }
     box-shadow 300ms ease;
 }
 .gs-notch.on { opacity: 1; }
-/* Ausgeklappt: Notch schmilzt nahtlos in die weiße rechte Aktionsleiste! */
+/* Ausgeklappt: Notch schmilzt nahtlos in die weiße rechte Aktionsleiste (2px Überlappung gegen High-DPI-Haarriss) */
 .gs-rail.expanded .gs-notch {
   left: 0;
-  right: 0;
+  right: -2px;
   border-radius: 16px 0 0 16px;
   box-shadow: -6px 10px 26px rgba(0, 0, 0, .28);
+}
+.gs-rail.scrubbing .gs-notch {
+  box-shadow: -4px 8px 30px rgba(255, 255, 255, .28);
 }
 /* Konkave invertierte Flüssigkeits-Kurven oben & unten an der Verbindungsstelle */
 .gs-notch::before,
 .gs-notch::after {
   content: "";
   position: absolute;
-  right: 0;
+  right: 2px;
   width: 14px;
   height: 14px;
   pointer-events: none;
@@ -2997,6 +3008,7 @@ header.top h1 { margin-right: auto; }
 .gs-ic { width: 20px; height: 20px; flex: none; display: grid; place-items: center; }
 .gs-ic .ic { width: 19px; height: 19px; stroke-width: 1.9; transition: transform 280ms cubic-bezier(.34, 1.56, .64, 1); }
 .gs-item:active .gs-ic .ic { transform: scale(.86); }
+.gs-rail.scrubbing .gs-item.is-active .gs-ic .ic { transform: scale(1.1); }
 
 .gs-tx {
   display: grid;
@@ -3086,6 +3098,7 @@ header.top h1 { margin-right: auto; }
 .gs-rail.expanded .gs-proj { justify-content: flex-start; margin-right: 12px; padding: 0 10px; gap: 10px; }
 .gs-proj:hover { background: rgba(255, 255, 255, .07); color: #fff; }
 .gs-proj:active { transform: scale(.96); }
+.gs-proj.is-scrub { background: rgba(255, 255, 255, .16); color: #fff; transform: translateX(4px); }
 .gs-pdot {
   width: 9px;
   height: 9px;
@@ -3200,10 +3213,82 @@ header.top h1 { margin-right: auto; }
 .gs-toggle-btn .ic { transition: transform 420ms cubic-bezier(.22, 1.14, .36, 1); }
 .gs-rail.expanded .gs-toggle-btn .ic { transform: rotate(180deg); }
 
+/* Einheitliches Haupt-Quick-Menü: untere Tab-Leiste überall ausblenden & Platz unten zurückgewinnen */
+body.gs-ready nav.tabs { display: none !important; }
+body.gs-ready .screen:not(.is-brain) { padding-bottom: calc(var(--sb) + 92px); }
+body.gs-ready .fab { bottom: calc(var(--sb) + 22px); }
+body.gs-ready .fabmenu { bottom: calc(var(--sb) + 94px); }
+body.gs-ready .nbar { bottom: calc(var(--sb) + 20px); }
+body.gs-ready .br-dock { bottom: calc(var(--sb) + 18px); }
+body.gs-ready .br-hint { bottom: calc(var(--sb) + 26px); }
+
+/* Linker Daumen-Griff für Mobil (Tippen, Rechts-Wischen oder Gedrückt-Halten & Durchfahren) */
+.gs-edge {
+  position: fixed;
+  left: 0;
+  top: 52%;
+  z-index: 28;
+  width: 28px;
+  height: 92px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  transform: translate3d(0, -50%, 0);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 280ms cubic-bezier(.22, 1, .36, 1), opacity 220ms ease;
+}
+.gs-edge.hide {
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(-100%, -50%, 0);
+}
+.gs-edge-pill {
+  width: 12px;
+  height: 70px;
+  border-radius: 0 12px 12px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(14, 16, 26, .82);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, .18),
+    inset 0 1px 0 rgba(255, 255, 255, .14),
+    inset 0 -1px 0 rgba(255, 255, 255, .08),
+    4px 8px 22px rgba(0, 0, 0, .58);
+  transition: width 220ms cubic-bezier(.34, 1.56, .64, 1), background-color 180ms, box-shadow 220ms;
+}
+.gs-edge.active .gs-edge-pill,
+.gs-edge:active .gs-edge-pill {
+  width: 16px;
+  background: rgba(24, 27, 42, .94);
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, .32),
+    4px 10px 28px rgba(0, 0, 0, .72);
+}
+.gs-edge-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ec, #fff);
+  box-shadow: 0 0 8px var(--ec, #fff);
+}
+.gs-edge-bar {
+  width: 2.5px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .42);
+}
+
 /* Desktop vs. Mobil Verhalten */
 @media (min-width: 860px) {
-  .gs-mob-btn { display: none !important; }
-  body.gs-ready nav.tabs { display: none; }
+  .gs-mob-btn, .gs-edge { display: none !important; }
   body.gs-ready .screen:not(.is-brain) {
     transition: padding-left 480ms cubic-bezier(.22, 1, .36, 1), max-width 480ms cubic-bezier(.22, 1, .36, 1);
   }
@@ -3220,15 +3305,24 @@ header.top h1 { margin-right: auto; }
     opacity: 0;
     pointer-events: none;
   }
+  .gs-rail.expanded {
+    width: min(286px, calc(100vw - 24px));
+  }
   .gs-rail.mobile-open {
     transform: translate3d(0, -50%, 0) scale(1);
     opacity: 1;
     pointer-events: auto;
   }
+  /* Tastatur-sicherer Suchmodus auf Mobil: klebt sauber oben im sichtbaren Bereich */
+  .gs-rail.mobile-open.searching {
+    top: calc(var(--st) + 12px);
+    transform: translate3d(0, 0, 0) scale(1);
+    max-height: calc(100dvh - 24px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gs-rail, .gs-strip, .gs-notch, .gs-tx, .gs-brand-tx, .gs-plbl, .gs-scrim, .gs-orb {
+  .gs-rail, .gs-strip, .gs-notch, .gs-tx, .gs-brand-tx, .gs-plbl, .gs-scrim, .gs-orb, .gs-edge, .gs-edge-pill {
     transition-duration: 0.01ms !important;
     animation: none !important;
   }

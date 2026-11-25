@@ -1,6 +1,7 @@
-// Glassy Sidebar V10 + Real Damped Spring Engine + Live Inline Search (Framer-Motion-artige Physik)
+// Glassy Sidebar V10 — Einheitliches Haupt-Quick-Menü (Mobil & Desktop)
+// Echte gedämpfte Feder-Physik, Gedrückt-Halten & Durchfahren (Scrubbing), Edge-Handle, Live-Suche
 
-export function createSpring({ stiffness = 340, damping = 28, mass = 1, value = 0, onUpdate, onRest }) {
+export function createSpring({ stiffness = 360, damping = 29, mass = 1, value = 0, onUpdate, onRest }) {
   let x = value, v = 0, target = value, raf = 0, last = 0;
 
   function step(now) {
@@ -50,8 +51,13 @@ export function mountGlassySidebar(api) {
   let expanded = false;
   let mobileOpen = false;
   let activeKey = getTab() || 'home';
+  let previewKey = null;
+  let previewTopicId = null;
   let initializedNotch = false;
   let query = '';
+  let suppressClickUntil = 0;
+
+  const isDesktop = () => window.innerWidth >= 860;
 
   // Backdrop für mobile Überlagerung
   let scrim = document.getElementById('gsScrim');
@@ -62,12 +68,24 @@ export function mountGlassySidebar(api) {
     document.body.appendChild(scrim);
   }
 
+  // Kompakter linker Daumen-Griff für Mobil (Tippen, Wischen oder Gedrückt-Halten & Durchfahren!)
+  let edge = document.getElementById('gsEdge');
+  if (!edge) {
+    edge = document.createElement('button');
+    edge.id = 'gsEdge';
+    edge.type = 'button';
+    edge.className = 'gs-edge';
+    edge.setAttribute('aria-label', 'Quick-Menü öffnen oder gedrückt halten zum Durchfahren');
+    edge.innerHTML = '<span class="gs-edge-pill" aria-hidden="true"><i class="gs-edge-dot"></i><i class="gs-edge-bar"></i></span>';
+    document.body.appendChild(edge);
+  }
+
   let rail = document.getElementById('gsRail');
   if (!rail) {
     rail = document.createElement('aside');
     rail.id = 'gsRail';
     rail.className = 'gs-rail';
-    rail.setAttribute('aria-label', 'Schnellnavigation');
+    rail.setAttribute('aria-label', 'Hauptnavigation');
     document.body.appendChild(rail);
   }
 
@@ -75,14 +93,14 @@ export function mountGlassySidebar(api) {
     <div class="gs-shell">
       <div class="gs-body">
         <div class="gs-head">
-          <button type="button" class="gs-logo-btn" data-gs="toggle" aria-label="Seitenleiste umschalten">
+          <button type="button" class="gs-logo-btn" data-gs="toggle" aria-label="Seitenleiste ein- oder ausklappen">
             <span class="gs-orb" aria-hidden="true"></span>
             <span class="gs-brand-tx"><b>Lumen</b><small id="gsThemeSub">Workspace</small></span>
           </button>
         </div>
 
         <div class="gs-search" id="gsSearchBox">
-          <button type="button" class="gs-search-trigger" id="gsSearchBtn" aria-label="Im Schnellmenü suchen">
+          <button type="button" class="gs-search-trigger" id="gsSearchBtn" aria-label="Im Quick-Menü suchen">
             <span class="gs-ic">${ic('search')}</span>
           </button>
           <input type="search" id="gsSearchInput" class="gs-search-in" placeholder="Alles suchen …" aria-label="Alles durchsuchen" autocomplete="off">
@@ -161,30 +179,59 @@ export function mountGlassySidebar(api) {
 
   // Echte gedämpfte Feder für die gleitende weiße Aktiv-Kapsel (Y-Position + Höhe)
   const notchY = createSpring({
-    stiffness: 360,
+    stiffness: 380,
     damping: 30,
     onUpdate: (y, vel) => {
-      const stretch = Math.min(0.055, Math.abs(vel) * 0.00004);
+      const stretch = Math.min(0.06, Math.abs(vel) * 0.000045);
       notch.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0) scaleY(${(1 + stretch).toFixed(4)})`;
     },
   });
   const notchH = createSpring({
-    stiffness: 380,
+    stiffness: 400,
     damping: 32,
     onUpdate: h => { notch.style.height = `${Math.max(40, h).toFixed(1)}px`; },
   });
 
+  function applyActiveHighlight(key = previewKey || activeKey) {
+    navEl.querySelectorAll('.gs-item').forEach(b => {
+      const on = b.dataset.gsNav === key && !previewTopicId;
+      b.classList.toggle('is-active', on);
+      if (b.dataset.gsNav === activeKey) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
+    projsEl.querySelectorAll('.gs-proj').forEach(b => {
+      b.classList.toggle('is-scrub', !!previewTopicId && b.dataset.gsTopic === previewTopicId);
+    });
+  }
+
   function placeNotch(immediate = false) {
     if (mainView.hidden) return;
-    const btn = navEl.querySelector(`.gs-item[data-gs-nav="${activeKey}"]`) || navEl.querySelector('.gs-item');
+    const key = previewKey || activeKey;
+    const btn = navEl.querySelector(`.gs-item[data-gs-nav="${key}"]`) || navEl.querySelector('.gs-item');
     if (!btn || !btn.offsetHeight) return;
     const y = btn.offsetTop;
     const h = btn.offsetHeight;
     const instant = immediate || !initializedNotch || reduced();
     initializedNotch = true;
-    notch.classList.add('on');
+    notch.classList.toggle('on', !previewTopicId);
     notchY.set(y, instant);
     notchH.set(h, instant);
+  }
+
+  function navigateTo(k) {
+    activeKey = k;
+    previewKey = null;
+    previewTopicId = null;
+    applyActiveHighlight(k);
+    placeNotch(false);
+    buzz(8);
+    if (k === 'invoices') {
+      if (!isDesktop()) closeMobileDrawer();
+      setTimeout(() => openInvoiceList(), 120);
+    } else {
+      switchTab(k);
+      if (!isDesktop()) setTimeout(closeMobileDrawer, 180);
+    }
   }
 
   function highlight(text, q) {
@@ -215,61 +262,27 @@ export function mountGlassySidebar(api) {
     const has = (...xs) => xs.some(x => fold(x).includes(q));
     const items = [];
 
-    // 1) Notizen
     (data.notes || []).filter(n => has(n.title, n.body)).slice(0, 5).forEach(n => {
-      items.push({
-        go: `note:${n.id}`,
-        icon: n.audio?.length ? 'mic' : 'note',
-        color: n.color || 'yellow',
-        title: highlight(noteTitle(n), q),
-        sub: 'Notiz',
-      });
+      items.push({ go: `note:${n.id}`, icon: n.audio?.length ? 'mic' : 'note', color: n.color || 'yellow', title: highlight(noteTitle(n), q), sub: 'Notiz' });
     });
 
-    // 2) Zentrale / Graph Themen & Abschnitte
     (data.brain?.topics || []).forEach(t => {
       if (has(t.title, t.body)) {
-        items.push({
-          go: `brain:${t.id}`,
-          icon: 'graph',
-          color: t.color || 'violet',
-          title: highlight(t.title, q),
-          sub: `Graph · ${(t.sections || []).length} Abschn.`,
-        });
+        items.push({ go: `brain:${t.id}`, icon: 'graph', color: t.color || 'violet', title: highlight(t.title, q), sub: `Graph · ${(t.sections || []).length} Abschn.` });
       }
       (t.sections || []).forEach(s => {
         if (has(s.title, s.body, t.title)) {
-          items.push({
-            go: `bsec:${t.id}|${s.id}`,
-            icon: 'graph',
-            color: t.color || 'violet',
-            title: highlight(s.title, q),
-            sub: `${esc(t.title)} · Abschnitt`,
-          });
+          items.push({ go: `bsec:${t.id}|${s.id}`, icon: 'graph', color: t.color || 'violet', title: highlight(s.title, q), sub: `${esc(t.title)} · Abschnitt` });
         }
       });
     });
 
-    // 3) To-dos
     (data.todos || []).filter(t => has(t.text)).slice(0, 5).forEach(t => {
-      items.push({
-        go: `todo:${t.id}`,
-        icon: 'check',
-        color: t.done ? 'green' : 'orange',
-        title: highlight(t.text, q),
-        sub: t.done ? 'To-do · Erledigt' : 'To-do · Offen',
-      });
+      items.push({ go: `todo:${t.id}`, icon: 'check', color: t.done ? 'green' : 'orange', title: highlight(t.text, q), sub: t.done ? 'To-do · Erledigt' : 'To-do · Offen' });
     });
 
-    // 4) Rechnungen / Belege
     (data.invoices || []).filter(i => has(i.vendor, i.number, i.note)).slice(0, 4).forEach(i => {
-      items.push({
-        go: `inv:${i.id}`,
-        icon: 'receipt',
-        color: 'green',
-        title: highlight(i.vendor, q),
-        sub: `Beleg · ${esc(money(i.gross, i.currency))}`,
-      });
+      items.push({ go: `inv:${i.id}`, icon: 'receipt', color: 'green', title: highlight(i.vendor, q), sub: `Beleg · ${esc(money(i.gross, i.currency))}` });
     });
 
     if (!items.length) {
@@ -289,6 +302,7 @@ export function mountGlassySidebar(api) {
     if (!query && !searchIn.value) return;
     query = '';
     searchIn.value = '';
+    rail.classList.remove('searching');
     renderSearch();
   }
 
@@ -296,7 +310,7 @@ export function mountGlassySidebar(api) {
     const [kind, rest] = hit.split(':');
     buzz(8);
     clearSearch();
-    if (window.innerWidth < 860) closeMobileDrawer();
+    if (!isDesktop()) closeMobileDrawer();
     if (kind === 'note') openNote(rest);
     else if (kind === 'brain') selectBrainTopic(rest);
     else if (kind === 'bsec') { const [tid, sid] = rest.split('|'); selectBrainSection(tid, sid); }
@@ -332,7 +346,11 @@ export function mountGlassySidebar(api) {
     setTxt('#gsSub-brain', `${topics.length} Themen · ${secsN} Abschn.`);
     setTxt('#gsSub-invoices', openInv ? `${openInv} offen` : `${invs.length} Belege`);
 
-    // Echte Graph-Themen als farbige Projekt-Zeilen
+    // Edge-Handle Farbpunkt spiegelt aktiven Bereich wider
+    const curTab = getTab() || 'home';
+    const edgeColor = { home: 'white', notes: 'yellow', todos: 'orange', brain: 'violet' }[curTab] || 'white';
+    edge.style.setProperty('--ec', `var(--${edgeColor})`);
+
     if (topics.length) {
       projsEl.innerHTML = topics.slice(0, 5).map((t, i) => `
         <button type="button" class="gs-proj" data-gs-topic="${t.id}" style="--a:var(--${t.color || 'blue'});--i:${i}">
@@ -348,29 +366,25 @@ export function mountGlassySidebar(api) {
         </button>`;
     }
 
-    const curTab = getTab() || 'home';
     activeKey = curTab;
-    navEl.querySelectorAll('.gs-item').forEach(b => {
-      const on = b.dataset.gsNav === activeKey;
-      b.classList.toggle('is-active', on);
-      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
-    });
+    applyActiveHighlight(activeKey);
 
     if (query.trim()) renderSearch();
     else requestAnimationFrame(() => placeNotch(false));
   }
 
   function applyState() {
-    const isDesktop = window.innerWidth >= 860;
+    const desk = isDesktop();
     if (!expanded) clearSearch();
     rail.classList.toggle('expanded', expanded);
-    rail.classList.toggle('mobile-open', !isDesktop && mobileOpen);
-    scrim.classList.toggle('on', !isDesktop && mobileOpen);
-    document.body.classList.toggle('gs-expanded', isDesktop && expanded);
-    document.body.classList.toggle('gs-ready', true);
+    rail.classList.toggle('mobile-open', !desk && mobileOpen);
+    scrim.classList.toggle('on', !desk && mobileOpen);
+    edge.classList.toggle('hide', desk || mobileOpen);
+    document.body.classList.toggle('gs-expanded', desk && expanded);
+    document.body.classList.add('gs-ready');
     requestAnimationFrame(() => placeNotch(false));
-    setTimeout(() => placeNotch(false), 180);
-    setTimeout(() => placeNotch(false), 380);
+    setTimeout(() => placeNotch(false), 160);
+    setTimeout(() => placeNotch(false), 360);
   }
 
   function setExpanded(next) {
@@ -379,10 +393,9 @@ export function mountGlassySidebar(api) {
     applyState();
   }
 
-  function openMobileDrawer() {
+  function openMobileDrawer(asExpanded = true) {
     mobileOpen = true;
-    expanded = true;
-    buzz(8);
+    expanded = asExpanded;
     syncData();
     applyState();
   }
@@ -390,11 +403,226 @@ export function mountGlassySidebar(api) {
   function closeMobileDrawer() {
     if (!mobileOpen) return;
     mobileOpen = false;
+    previewKey = null;
+    previewTopicId = null;
     clearSearch();
     applyState();
   }
 
-  // Direkt im Quick-Menü suchen!
+  /* ========================================================================
+     GEDRÜCKT HALTEN & DURCHFAHREN (HOLD & SCRUB) + WISCH-GESTEN
+     ======================================================================== */
+
+  // Findet das Element unter der Finger-Y-Koordinate innerhalb von Nav & Themen
+  function hitAtY(clientY) {
+    if (mainView.hidden) return null;
+    for (const btn of navEl.querySelectorAll('.gs-item')) {
+      const r = btn.getBoundingClientRect();
+      if (clientY >= r.top - 3 && clientY <= r.bottom + 3) {
+        return { kind: 'nav', key: btn.dataset.gsNav };
+      }
+    }
+    for (const btn of projsEl.querySelectorAll('.gs-proj[data-gs-topic]')) {
+      const r = btn.getBoundingClientRect();
+      if (clientY >= r.top - 3 && clientY <= r.bottom + 3) {
+        return { kind: 'topic', id: btn.dataset.gsTopic };
+      }
+    }
+    return null;
+  }
+
+  function updateScrubTarget(clientY) {
+    const hit = hitAtY(clientY);
+    if (!hit) return;
+    if (hit.kind === 'nav') {
+      if (previewKey !== hit.key || previewTopicId) {
+        previewKey = hit.key;
+        previewTopicId = null;
+        buzz(6);
+        applyActiveHighlight(previewKey);
+        placeNotch(false);
+      }
+    } else if (hit.kind === 'topic') {
+      if (previewTopicId !== hit.id) {
+        previewTopicId = hit.id;
+        previewKey = null;
+        buzz(6);
+        applyActiveHighlight(activeKey);
+        placeNotch(false);
+      }
+    }
+  }
+
+  function commitScrub() {
+    rail.classList.remove('scrubbing');
+    if (previewTopicId) {
+      const tid = previewTopicId;
+      previewTopicId = null; previewKey = null;
+      applyActiveHighlight(activeKey);
+      if (!isDesktop()) closeMobileDrawer();
+      buzz(10);
+      selectBrainTopic(tid);
+      return true;
+    }
+    if (previewKey) {
+      const k = previewKey;
+      previewKey = null; previewTopicId = null;
+      navigateTo(k);
+      return true;
+    }
+    return false;
+  }
+
+  // 1) Direkt auf dem Quick-Menü (Nav & Themen) gedrückt halten & vertikal durchfahren
+  //    oder auf Mobil nach links wegwischen!
+  //    Wichtig: setPointerCapture erst aktivieren, wenn Durchfahren wirklich startet,
+  //    damit normale Klicks/Taps ihr genaues Button-Ziel behalten!
+  let navScrub = null;
+  const captureMain = pid => { try { mainView.setPointerCapture?.(pid); } catch {} };
+  const releaseMain = pid => { try { if (mainView.hasPointerCapture?.(pid)) mainView.releasePointerCapture(pid); } catch {} };
+
+  mainView.addEventListener('pointerdown', e => {
+    if (e.button && e.button !== 0) return;
+    if (mainView.hidden || e.target.closest('.gs-sec-add')) return;
+    const startBtn = e.target.closest('.gs-item');
+    navScrub = { pid: e.pointerId, x0: e.clientX, y0: e.clientY, active: false, closed: false, timer: 0, startKey: startBtn?.dataset.gsNav || activeKey };
+    navScrub.timer = setTimeout(() => {
+      if (!navScrub || navScrub.closed) return;
+      navScrub.active = true;
+      captureMain(navScrub.pid);
+      rail.classList.add('scrubbing');
+      buzz(10);
+      updateScrubTarget(navScrub.y0);
+    }, 150);
+  });
+
+  const onNavMove = e => {
+    if (!navScrub || navScrub.pid !== e.pointerId || navScrub.closed) return;
+    const dx = e.clientX - navScrub.x0, dy = e.clientY - navScrub.y0;
+    if (!navScrub.active && !isDesktop() && mobileOpen && dx < -46 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+      clearTimeout(navScrub.timer);
+      navScrub.closed = true;
+      suppressClickUntil = performance.now() + 260;
+      buzz(5);
+      closeMobileDrawer();
+      return;
+    }
+    if (!navScrub.active && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) {
+      clearTimeout(navScrub.timer);
+      navScrub.active = true;
+      captureMain(navScrub.pid);
+      rail.classList.add('scrubbing');
+      buzz(8);
+    }
+    if (navScrub.active) {
+      e.preventDefault();
+      updateScrubTarget(e.clientY);
+    }
+  };
+
+  const endNavScrub = e => {
+    if (!navScrub || navScrub.pid !== e.pointerId) return;
+    const st = navScrub; navScrub = null;
+    clearTimeout(st.timer);
+    releaseMain(st.pid);
+    if (st.closed) return;
+    if (st.active) {
+      suppressClickUntil = performance.now() + 300;
+      if (!commitScrub()) {
+        previewKey = null; previewTopicId = null;
+        applyActiveHighlight(activeKey); placeNotch(false);
+      }
+    }
+  };
+  addEventListener('pointermove', onNavMove);
+  addEventListener('pointerup', endNavScrub);
+  addEventListener('pointercancel', endNavScrub);
+
+  // 2) Linker Daumen-Griff (#gsEdge):
+  //    - Kurzes Tippen oder Rechts-Wischen -> öffnet das Quick-Menü ausgeklappt und lässt es offen
+  //    - Gedrückt halten (155ms) -> öffnet sofort im Durchfahr-Modus: Daumen hoch/runter gleiten, Loslassen = Auswählen!
+  //    - Auch nach Rechts-Wischen: sobald man vertikal zieht (> 12px), schaltet es nahtlos ins Durchfahren um!
+  let edgeGest = null;
+  edge.addEventListener('pointerdown', e => {
+    if (isDesktop() || (e.button && e.button !== 0)) return;
+    edge.classList.add('active');
+    edgeGest = { pid: e.pointerId, x0: e.clientX, y0: e.clientY, opened: false, scrubbing: false, scrubY0: e.clientY, moved: 0, timer: 0 };
+    try { edge.setPointerCapture?.(e.pointerId); } catch {}
+    edgeGest.timer = setTimeout(() => {
+      if (!edgeGest) return;
+      edgeGest.opened = true;
+      edgeGest.scrubbing = true;
+      buzz(12);
+      openMobileDrawer(true);
+      rail.classList.add('scrubbing');
+      requestAnimationFrame(() => updateScrubTarget(edgeGest ? edgeGest.y0 : e.clientY));
+    }, 155);
+  });
+
+  edge.addEventListener('pointermove', e => {
+    if (!edgeGest || edgeGest.pid !== e.pointerId) return;
+    const dx = e.clientX - edgeGest.x0, dy = e.clientY - edgeGest.y0;
+    edgeGest.moved = Math.max(edgeGest.moved, Math.hypot(dx, dy));
+    if (!edgeGest.opened && dx > 20) {
+      clearTimeout(edgeGest.timer);
+      edgeGest.opened = true;
+      edgeGest.scrubY0 = e.clientY;
+      buzz(8);
+      openMobileDrawer(true);
+    }
+    if (edgeGest.opened && !edgeGest.scrubbing && Math.abs(e.clientY - edgeGest.scrubY0) > 12) {
+      edgeGest.scrubbing = true;
+      rail.classList.add('scrubbing');
+      buzz(6);
+    }
+    if (edgeGest.scrubbing) {
+      e.preventDefault();
+      updateScrubTarget(e.clientY);
+    }
+  });
+
+  const endEdgeGest = e => {
+    if (!edgeGest || edgeGest.pid !== e.pointerId) return;
+    const g = edgeGest; edgeGest = null;
+    clearTimeout(g.timer);
+    edge.classList.remove('active');
+    suppressClickUntil = performance.now() + 260;
+    if (g.scrubbing) {
+      if (!commitScrub()) {
+        rail.classList.remove('scrubbing');
+        previewKey = null; previewTopicId = null;
+        applyActiveHighlight(activeKey); placeNotch(false);
+      }
+    } else if (!g.opened && g.moved < 14) {
+      buzz(8);
+      openMobileDrawer(true);
+    }
+  };
+  edge.addEventListener('pointerup', endEdgeGest);
+  edge.addEventListener('pointercancel', endEdgeGest);
+
+  // 3) Auf Mobil: Wischen nach links auf dem offenen Quick-Menü (Kopf/Fuß/Leiste) schließt es sanft
+  let railSwipe = null;
+  rail.addEventListener('pointerdown', e => {
+    if (isDesktop() || !mobileOpen || e.target.closest('#gsMainView, input')) return;
+    railSwipe = { pid: e.pointerId, x0: e.clientX, y0: e.clientY };
+  });
+  rail.addEventListener('pointermove', e => {
+    if (!railSwipe || railSwipe.pid !== e.pointerId) return;
+    const dx = e.clientX - railSwipe.x0, dy = e.clientY - railSwipe.y0;
+    if (dx < -46 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+      railSwipe = null;
+      buzz(5);
+      closeMobileDrawer();
+    }
+  });
+  rail.addEventListener('pointerup', () => { railSwipe = null; });
+  rail.addEventListener('pointercancel', () => { railSwipe = null; });
+
+  /* ========================================================================
+     LIVE-SUCHE & KLICKS
+     ======================================================================== */
+
   searchBtn.addEventListener('click', () => {
     buzz(7);
     if (!expanded) {
@@ -406,8 +634,16 @@ export function mountGlassySidebar(api) {
     }
   });
 
+  searchIn.addEventListener('focus', () => {
+    if (!isDesktop()) rail.classList.add('searching');
+  });
+  searchIn.addEventListener('blur', () => {
+    if (!query.trim()) rail.classList.remove('searching');
+  });
+
   searchIn.addEventListener('input', () => {
     query = searchIn.value;
+    if (!isDesktop()) rail.classList.toggle('searching', !!query.trim() || document.activeElement === searchIn);
     renderSearch();
   });
 
@@ -417,7 +653,7 @@ export function mountGlassySidebar(api) {
       if (first) { e.preventDefault(); openSearchHit(first.dataset.gsHit); }
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      if (query) { clearSearch(); }
+      if (query) clearSearch();
       else { searchIn.blur(); if (mobileOpen) closeMobileDrawer(); }
     }
   });
@@ -429,34 +665,18 @@ export function mountGlassySidebar(api) {
   });
 
   rail.addEventListener('click', e => {
+    if (performance.now() < suppressClickUntil) return;
+
     const hitBtn = e.target.closest('[data-gs-hit]');
     if (hitBtn) return openSearchHit(hitBtn.dataset.gsHit);
 
     const navBtn = e.target.closest('[data-gs-nav]');
-    if (navBtn) {
-      const k = navBtn.dataset.gsNav;
-      activeKey = k;
-      navEl.querySelectorAll('.gs-item').forEach(b => {
-        const on = b.dataset.gsNav === k;
-        b.classList.toggle('is-active', on);
-        if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
-      });
-      placeNotch(false);
-      buzz(7);
-      if (k === 'invoices') {
-        if (window.innerWidth < 860) closeMobileDrawer();
-        setTimeout(() => openInvoiceList(), 120);
-      } else {
-        switchTab(k);
-        if (window.innerWidth < 860) setTimeout(closeMobileDrawer, 190);
-      }
-      return;
-    }
+    if (navBtn) return navigateTo(navBtn.dataset.gsNav);
 
     const topicBtn = e.target.closest('[data-gs-topic]');
     if (topicBtn) {
       buzz(8);
-      if (window.innerWidth < 860) closeMobileDrawer();
+      if (!isDesktop()) closeMobileDrawer();
       selectBrainTopic(topicBtn.dataset.gsTopic);
       return;
     }
@@ -465,14 +685,10 @@ export function mountGlassySidebar(api) {
     if (!actBtn) return;
     const act = actBtn.dataset.gs;
     if (act === 'toggle') {
-      if (window.innerWidth < 860 && mobileOpen && !expanded) {
-        setExpanded(true);
-      } else {
-        setExpanded(!expanded);
-      }
+      setExpanded(!expanded);
       return;
     }
-    if (window.innerWidth < 860) closeMobileDrawer();
+    if (!isDesktop()) closeMobileDrawer();
     buzz(8);
     if (act === 'settings') openSettings();
     else if (act === 'new-note') openNote();
@@ -485,24 +701,26 @@ export function mountGlassySidebar(api) {
 
   const onKey = e => { if (e.key === 'Escape' && mobileOpen && document.activeElement !== searchIn) closeMobileDrawer(); };
   const onResize = () => {
-    if (window.innerWidth >= 860) mobileOpen = false;
+    if (isDesktop()) mobileOpen = false;
     applyState();
   };
   addEventListener('keydown', onKey);
   addEventListener('resize', onResize);
 
+  // Jedes Nav-Element beobachten, damit der weiße Notch beim Aufklappen der Untertitel absolut synchron bleibt
   const ro = new ResizeObserver(() => placeNotch(false));
   ro.observe(navEl);
+  navEl.querySelectorAll('.gs-item').forEach(el => ro.observe(el));
 
   syncData();
   applyState();
 
   return {
     sync: syncData,
-    openMobile: openMobileDrawer,
+    openMobile: () => openMobileDrawer(true),
     closeMobile: closeMobileDrawer,
     focusSearch() {
-      if (window.innerWidth < 860) mobileOpen = true;
+      if (!isDesktop()) mobileOpen = true;
       expanded = true;
       syncData();
       applyState();
@@ -514,7 +732,10 @@ export function mountGlassySidebar(api) {
       ro.disconnect();
       removeEventListener('keydown', onKey);
       removeEventListener('resize', onResize);
-      rail.remove(); scrim.remove();
+      removeEventListener('pointermove', onNavMove);
+      removeEventListener('pointerup', endNavScrub);
+      removeEventListener('pointercancel', endNavScrub);
+      rail.remove(); scrim.remove(); edge.remove();
       document.body.classList.remove('gs-expanded', 'gs-ready');
     },
   };
