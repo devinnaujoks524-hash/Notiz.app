@@ -75,7 +75,7 @@ export function mountGlassySidebar(api) {
     edge.id = 'gsEdge';
     edge.type = 'button';
     edge.className = 'gs-edge';
-    edge.setAttribute('aria-label', 'Quick-Menü öffnen oder gedrückt halten zum Durchfahren');
+    edge.setAttribute('aria-label', 'Quick-Menü öffnen');
     edge.innerHTML = '<span class="gs-edge-pill" aria-hidden="true"><i class="gs-edge-dot"></i><i class="gs-edge-bar"></i></span>';
     document.body.appendChild(edge);
   }
@@ -482,7 +482,7 @@ export function mountGlassySidebar(api) {
   const releaseMain = pid => { try { if (mainView.hasPointerCapture?.(pid)) mainView.releasePointerCapture(pid); } catch {} };
 
   mainView.addEventListener('pointerdown', e => {
-    if (e.button && e.button !== 0) return;
+    if (edgeGest || (e.button && e.button !== 0)) return;
     if (mainView.hidden || e.target.closest('.gs-sec-add')) return;
     const startBtn = e.target.closest('.gs-item');
     navScrub = { pid: e.pointerId, x0: e.clientX, y0: e.clientY, active: false, closed: false, timer: 0, startKey: startBtn?.dataset.gsNav || activeKey };
@@ -539,67 +539,50 @@ export function mountGlassySidebar(api) {
   addEventListener('pointercancel', endNavScrub);
 
   // 2) Linker Daumen-Griff (#gsEdge):
-  //    - Kurzes Tippen oder Rechts-Wischen -> öffnet das Quick-Menü ausgeklappt und lässt es offen
-  //    - Gedrückt halten (155ms) -> öffnet sofort im Durchfahr-Modus: Daumen hoch/runter gleiten, Loslassen = Auswählen!
-  //    - Auch nach Rechts-Wischen: sobald man vertikal zieht (> 12px), schaltet es nahtlos ins Durchfahren um!
+  //    Beim ersten Rausziehen oder Antippen wird NUR das Quick-Menü geöffnet –
+  //    es darf dabei niemals versehentlich ein Menüpunkt ausgewählt oder geöffnet werden!
+  //    Erst im geöffneten Quick-Menü kann man tippen oder gedrückt halten & durchfahren.
   let edgeGest = null;
   edge.addEventListener('pointerdown', e => {
     if (isDesktop() || (e.button && e.button !== 0)) return;
     edge.classList.add('active');
-    edgeGest = { pid: e.pointerId, x0: e.clientX, y0: e.clientY, opened: false, scrubbing: false, scrubY0: e.clientY, moved: 0, timer: 0 };
+    edgeGest = { pid: e.pointerId, x0: e.clientX, y0: e.clientY, opened: false, moved: 0 };
     try { edge.setPointerCapture?.(e.pointerId); } catch {}
-    edgeGest.timer = setTimeout(() => {
-      if (!edgeGest) return;
-      edgeGest.opened = true;
-      edgeGest.scrubbing = true;
-      buzz(12);
-      openMobileDrawer(true);
-      rail.classList.add('scrubbing');
-      requestAnimationFrame(() => updateScrubTarget(edgeGest ? edgeGest.y0 : e.clientY));
-    }, 155);
   });
 
   edge.addEventListener('pointermove', e => {
     if (!edgeGest || edgeGest.pid !== e.pointerId) return;
     const dx = e.clientX - edgeGest.x0, dy = e.clientY - edgeGest.y0;
     edgeGest.moved = Math.max(edgeGest.moved, Math.hypot(dx, dy));
-    if (!edgeGest.opened && dx > 20) {
-      clearTimeout(edgeGest.timer);
+    if (!edgeGest.opened && dx > 16) {
       edgeGest.opened = true;
-      edgeGest.scrubY0 = e.clientY;
+      suppressClickUntil = performance.now() + 260;
       buzz(8);
       openMobileDrawer(true);
     }
-    if (edgeGest.opened && !edgeGest.scrubbing && Math.abs(e.clientY - edgeGest.scrubY0) > 12) {
-      edgeGest.scrubbing = true;
-      rail.classList.add('scrubbing');
-      buzz(6);
-    }
-    if (edgeGest.scrubbing) {
-      e.preventDefault();
-      updateScrubTarget(e.clientY);
-    }
+    if (edgeGest.opened) e.preventDefault();
   });
 
   const endEdgeGest = e => {
     if (!edgeGest || edgeGest.pid !== e.pointerId) return;
     const g = edgeGest; edgeGest = null;
-    clearTimeout(g.timer);
     edge.classList.remove('active');
+    try { if (edge.hasPointerCapture?.(g.pid)) edge.releasePointerCapture(g.pid); } catch {}
     suppressClickUntil = performance.now() + 260;
-    if (g.scrubbing) {
-      if (!commitScrub()) {
-        rail.classList.remove('scrubbing');
-        previewKey = null; previewTopicId = null;
-        applyActiveHighlight(activeKey); placeNotch(false);
-      }
-    } else if (!g.opened && g.moved < 14) {
+    if (!g.opened && g.moved < 18) {
       buzz(8);
       openMobileDrawer(true);
     }
   };
   edge.addEventListener('pointerup', endEdgeGest);
   edge.addEventListener('pointercancel', endEdgeGest);
+  edge.addEventListener('click', e => {
+    // Fallback für Tastatur/Screenreader-Aktivierung ohne vorheriges Pointer-Event
+    if (isDesktop() || mobileOpen || performance.now() < suppressClickUntil) return;
+    e.preventDefault();
+    buzz(8);
+    openMobileDrawer(true);
+  });
 
   // 3) Auf Mobil: Wischen nach links auf dem offenen Quick-Menü (Kopf/Fuß/Leiste) schließt es sanft
   let railSwipe = null;
