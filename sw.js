@@ -1,7 +1,7 @@
 // Offline-Unterstützung. Strategie: erst Netz (immer die neueste Version), nur ohne Netz aus dem Cache.
 // Bei jeder neuen Version VERSION erhöhen.
-const VERSION = 'notiz-v56';
-const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'vault.js', 'brain.js', 'manifest.webmanifest',
+const VERSION = 'notiz-v57';
+const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'vault.js', 'brain.js', 'sidebar.js', 'manifest.webmanifest',
   'icons/icon.svg', 'fonts/jetbrains-mono-400.woff2', 'fonts/jetbrains-mono-500.woff2', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'];
 
 self.addEventListener('install', e => {

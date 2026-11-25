@@ -1,5 +1,6 @@
 import { Vault } from './vault.js';
 import { ensureBrain, mountBrain } from './brain.js';
+import { createSpring, mountGlassySidebar } from './sidebar.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const app = $('#app');
@@ -60,6 +61,7 @@ const P = {
   graph: '<circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M9.6 10.2L6.6 7.5M14.4 10.2L17.4 7.5M14.2 14.2L16.6 16.6"/>',
   target: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
   minus: '<path d="M5 12h14"/>',
+  sidebar: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/>',
 };
 const ic = n => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
 
@@ -70,9 +72,11 @@ const freshIds = new Set();
 const sheets = [];
 const COLORS = ['yellow', 'orange', 'pink', 'violet', 'blue', 'green'];
 
+let glassyRail = null;
 function save() {
   clearTimeout(saveT);
   saveT = setTimeout(flush, 350);
+  glassyRail?.sync();
 }
 async function flush() {
   clearTimeout(saveT); saveT = null;
@@ -149,6 +153,7 @@ function applyTheme(theme, wall, prism) {
     if (theme === 'glass' && !el.classList.contains('quick')) { if (!el.querySelector(':scope > .wall')) el.insertAdjacentHTML('afterbegin', '<div class="wall" aria-hidden="true"></div>'); }
   });
   lgSync(); glassSync();
+  glassyRail?.sync();
 }
 
 /* ---------- Flüssiges Glas: echte Lichtbrechung am Rand ---------- */
@@ -275,17 +280,27 @@ function glidePlace(box, animate) {
   const g = box.querySelector(':scope > .glide'); if (!g) return;
   const on = box.querySelector(':scope > [aria-current="page"], :scope > [aria-checked="true"]');
   if (!on || !on.offsetWidth) { g.style.opacity = '0'; g._x = null; return; }
-  const x = on.offsetLeft, w = on.offsetWidth, prev = g._x;
-  g.style.cssText = `opacity:1;width:${w}px;height:${on.offsetHeight}px;top:${on.offsetTop}px;transform:translateX(${x}px)`;
+  const x = on.offsetLeft, w = on.offsetWidth, h = on.offsetHeight, top = on.offsetTop;
+  g.style.opacity = '1';
+  g.style.height = `${h}px`;
+  g.style.top = `${top}px`;
+  if (!g._sx) {
+    g._sx = createSpring({
+      stiffness: 360, damping: 28, value: x,
+      onUpdate: (cx, vel) => {
+        const stretch = Math.min(0.11, Math.abs(vel) * 0.00006);
+        g.style.transform = `translate3d(${cx.toFixed(2)}px, 0, 0) scaleX(${(1 + stretch).toFixed(4)})`;
+      },
+    });
+    g._sw = createSpring({
+      stiffness: 380, damping: 30, value: w,
+      onUpdate: cw => { g.style.width = `${Math.max(24, cw).toFixed(1)}px`; },
+    });
+  }
+  const instant = !animate || g._x == null || reduced();
   g._x = x;
-  if (!animate || prev == null || prev === x || reduced()) return;
-  const d = x - prev, k = Math.min(Math.abs(d) / w, 2.5);
-  g.getAnimations().forEach(a => a.cancel());
-  g.animate([
-    { transform: `translateX(${prev}px)` },
-    { transform: `translateX(${prev + d * .5}px) scaleX(${1 + k * .1})`, offset: .45 },
-    { transform: `translateX(${x}px)` },
-  ], { duration: 480, easing: 'cubic-bezier(.3, .8, .3, 1)' }); // nur seitlich dehnen, kein Zoomen
+  g._sx.set(x, instant);
+  g._sw.set(w, instant);
 }
 function glideScan(root) {
   const boxes = root.matches?.(GLIDE_SEL) ? [root] : [...(root.querySelectorAll?.(GLIDE_SEL) || [])];
@@ -506,6 +521,7 @@ async function boot() {
 }
 
 function renderSetup() {
+  glassyRail?.destroy(); glassyRail = null;
   app.innerHTML = `<main class="lock">
     <div class="logo" aria-hidden="true"></div>
     <h1>Lumen</h1>
@@ -599,6 +615,7 @@ function playUnlock(done) {
 
 async function lockNow() {
   if (!Vault.hasCode) return;
+  glassyRail?.destroy(); glassyRail = null;
   if (rec) stopRec(); await recDone; stopPlay(); // laufende oder gerade gestoppte Aufnahme wird vorher gesichert
   await flush();
   Vault.lock(); data = null;
@@ -641,6 +658,14 @@ function renderMain() {
   // Design aus den (verschlüsselten) Einstellungen übernehmen, z. B. nach einem Backup-Import auf einem neuen Gerät
   if (!lsGet('lumen-theme') && data.settings.theme) { applyTheme(data.settings.theme, data.settings.wall, data.settings.prism); lsSet('lumen-theme', getTheme()); lsSet('lumen-wall', getWall()); lsSet('lumen-prism', getPrism()); }
   enter = true;
+  glassyRail?.destroy();
+  glassyRail = mountGlassySidebar({
+    getData: () => data,
+    getTab: () => tab,
+    switchTab, openSpot, openSettings, openNote, openQuickTodo, openTimerSheet, openInvoiceList,
+    selectBrainTopic: tid => { brainSelect = { topicId: tid }; switchTab('brain'); },
+    ic, esc, buzz, reduced, getTheme, getPrism,
+  });
   renderTab();
   if (pending) setTimeout(runPending, 450);
   setTimeout(() => { checkTodoIsland(true); if (lowPower) battNote(getTheme() === 'glass' && lsGet('lumen-lens') !== '0'); }, 1500);
@@ -677,6 +702,7 @@ function renderTab() {
     const sel = brainSelect; brainSelect = null;
     brainCleanup = mountBrain(screen, { data, save, ic, esc, toast, buzz, dialog, reduced, COLORS, openBrainNote, uid, initialSelect: sel });
   }
+  glassyRail?.sync();
 }
 
 function staggerScreen() {
@@ -713,7 +739,7 @@ function switchTab(next) {
   exit.finished.then(show).catch(show);
 }
 
-const header = title => `<header class="top"><h1 data-crumb="Lumen / ${title}">${title}</h1><div class="hbtns">
+const header = title => `<header class="top"><button type="button" class="iconbtn gs-mob-btn" data-act="rail" aria-label="Seitenleiste öffnen">${ic('sidebar')}</button><h1 data-crumb="Lumen / ${title}">${title}</h1><div class="hbtns">
   <button class="iconbtn" data-act="settings" aria-label="Einstellungen">${ic('gear')}</button>
   ${Vault.hasCode ? `<button class="iconbtn" data-act="lock" aria-label="Jetzt sperren">${ic('lock')}</button>` : ''}</div></header>`;
 
@@ -997,7 +1023,7 @@ function viewHome() {
   const th = getTheme();
   const cfg = homeCfg(), em = th === 'ember' ? emberDash() : ['', ''], gm = th === 'gemini' ? geminiDash() : ['', ''];
   return `<div class="home${cls} al-${cfg.align} cs-${cfg.clockSize}">
-    <div class="hometop"><span class="em-brand" aria-hidden="true"><i></i>Lumen</span><span class="gm-brand" aria-hidden="true">${ic('sparkle')}<span>Lumen</span><em>Gemini</em></span><div class="hbtns">
+    <div class="hometop"><button type="button" class="iconbtn gs-mob-btn" data-act="rail" aria-label="Seitenleiste öffnen">${ic('sidebar')}</button><span class="em-brand" aria-hidden="true"><i></i>Lumen</span><span class="gm-brand" aria-hidden="true">${ic('sparkle')}<span>Lumen</span><em>Gemini</em></span><div class="hbtns">
       <button class="iconbtn" data-act="search" aria-label="Suchen">${ic('search')}</button>
       <button class="iconbtn" data-act="customize" aria-label="Startseite anpassen">${ic('sliders')}</button>
       <button class="iconbtn" data-act="settings" aria-label="Einstellungen">${ic('gear')}</button>
@@ -2807,6 +2833,7 @@ app.addEventListener('click', e => {
   }
   if (b.id === 'fab') { if (tab === 'home') return setMenu(!menuOpen, e.detail === 0); if (tab === 'notes') openNote(); else if (tab === 'todos') $('#tt').focus(); return; }
   const act = b.dataset.act;
+  if (act === 'rail') return glassyRail?.openMobile();
   if (act === 'lock') return lockNow();
   if (act === 'settings') return openSettings(b);
   if (act === 'customize') return openCustomize(b);
