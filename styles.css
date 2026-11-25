@@ -2777,14 +2777,16 @@ header.top h1 { margin-right: auto; }
 .gs-logo-btn {
   width: 100%;
   height: 42px;
-  padding: 0 3px;
+  padding: 0;
   border-radius: 14px;
   display: flex;
   align-items: center;
-  gap: 11px;
+  justify-content: center;
+  gap: 0;
   text-align: left;
-  transition: background-color 180ms, transform 220ms cubic-bezier(.34, 1.56, .64, 1);
+  transition: background-color 180ms, gap 360ms cubic-bezier(.22, 1, .36, 1), padding 360ms cubic-bezier(.22, 1, .36, 1), transform 220ms cubic-bezier(.34, 1.56, .64, 1);
 }
+.gs-rail.expanded .gs-logo-btn { justify-content: flex-start; padding: 0 3px; gap: 11px; }
 .gs-logo-btn:active { transform: scale(.96); }
 .gs-orb {
   width: 36px;
@@ -2810,26 +2812,28 @@ header.top h1 { margin-right: auto; }
 
 /* Such-Zeile */
 .gs-search {
-  height: 38px;
-  margin-right: 0;
-  padding: 0 10px;
+  width: 42px;
+  height: 42px;
+  margin: 0 auto;
+  padding: 0;
   border-radius: 999px;
   background: rgba(255, 255, 255, .06);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: 0;
   color: var(--t2);
   font-size: .84rem;
-  transition: background-color 180ms, margin 380ms cubic-bezier(.22, 1, .36, 1), transform 220ms cubic-bezier(.34, 1.56, .64, 1);
+  transition: width 400ms cubic-bezier(.22, 1, .36, 1), height 340ms, background-color 180ms, gap 340ms, padding 340ms, border-radius 360ms, transform 220ms cubic-bezier(.34, 1.56, .64, 1);
 }
-.gs-rail.expanded .gs-search { justify-content: flex-start; margin-right: 12px; border-radius: 13px; }
+.gs-rail.expanded .gs-search { width: calc(100% - 12px); height: 38px; margin: 0 12px 0 0; padding: 0 10px; gap: 9px; justify-content: flex-start; border-radius: 13px; }
 .gs-search:hover { background: rgba(255, 255, 255, .1); color: #fff; }
 .gs-search:active { transform: scale(.96); }
 .gs-lbl, .gs-kbd {
   opacity: 0;
   max-width: 0;
+  padding: 0;
   overflow: hidden;
   white-space: nowrap;
   transition: opacity 220ms ease, max-width 360ms cubic-bezier(.22, 1, .36, 1);
@@ -2914,17 +2918,17 @@ header.top h1 { margin-right: auto; }
   z-index: 1;
   width: 100%;
   min-height: 42px;
-  padding: 8px 10px;
-  border-radius: 14px;
+  padding: 0;
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 11px;
+  gap: 0;
   color: rgba(255, 255, 255, .72);
   text-align: left;
-  transition: color 240ms ease, padding 340ms cubic-bezier(.22, 1, .36, 1), background-color 180ms;
+  transition: color 240ms ease, padding 340ms cubic-bezier(.22, 1, .36, 1), gap 340ms cubic-bezier(.22, 1, .36, 1), border-radius 340ms, background-color 180ms;
 }
-.gs-rail.expanded .gs-item { justify-content: flex-start; padding: 9px 14px 9px 12px; }
+.gs-rail.expanded .gs-item { justify-content: flex-start; padding: 9px 14px 9px 12px; gap: 11px; border-radius: 14px; }
 .gs-item:not(.is-active):hover { color: #fff; background: rgba(255, 255, 255, .055); }
 .gs-item.is-active { color: #090a10; }
 .gs-ic { width: 20px; height: 20px; flex: none; display: grid; place-items: center; }
@@ -2934,14 +2938,14 @@ header.top h1 { margin-right: auto; }
 .gs-tx {
   display: grid;
   min-width: 0;
-  flex: 1;
+  flex: 0 0 0;
   opacity: 0;
   max-width: 0;
   overflow: hidden;
   transform: translateX(-8px);
   transition: opacity 240ms ease, max-width 400ms cubic-bezier(.22, 1, .36, 1), transform 360ms cubic-bezier(.22, 1, .36, 1);
 }
-.gs-rail.expanded .gs-tx { opacity: 1; max-width: 150px; transform: none; transition-delay: 75ms; }
+.gs-rail.expanded .gs-tx { flex: 1 1 auto; opacity: 1; max-width: 150px; transform: none; transition-delay: 75ms; }
 .gs-tx b { font-size: .88rem; font-weight: 650; line-height: 1.2; white-space: nowrap; }
 .gs-tx small {
   font-size: .72rem;
@@ -3005,18 +3009,18 @@ header.top h1 { margin-right: auto; }
 .gs-projs { display: grid; gap: 3px; }
 .gs-proj {
   height: 34px;
-  padding: 0 10px;
+  padding: 0;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 0;
   color: var(--t2);
   font-size: .84rem;
   text-align: left;
-  transition: background-color 180ms, color 180ms, transform 220ms cubic-bezier(.34, 1.56, .64, 1);
+  transition: background-color 180ms, color 180ms, gap 340ms cubic-bezier(.22, 1, .36, 1), padding 340ms cubic-bezier(.22, 1, .36, 1), transform 220ms cubic-bezier(.34, 1.56, .64, 1);
 }
-.gs-rail.expanded .gs-proj { justify-content: flex-start; margin-right: 12px; padding: 0 10px; }
+.gs-rail.expanded .gs-proj { justify-content: flex-start; margin-right: 12px; padding: 0 10px; gap: 10px; }
 .gs-proj:hover { background: rgba(255, 255, 255, .07); color: #fff; }
 .gs-proj:active { transform: scale(.96); }
 .gs-pdot {
@@ -3028,7 +3032,7 @@ header.top h1 { margin-right: auto; }
   box-shadow: 0 0 10px var(--a, var(--violet));
 }
 .gs-plbl {
-  flex: 1;
+  flex: 0 0 0;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -3038,7 +3042,7 @@ header.top h1 { margin-right: auto; }
   transform: translateX(-8px);
   transition: opacity 260ms ease, max-width 380ms cubic-bezier(.22, 1, .36, 1), transform 360ms cubic-bezier(.22, 1, .36, 1);
 }
-.gs-rail.expanded .gs-plbl { opacity: 1; max-width: 140px; transform: none; transition-delay: calc(100ms + var(--i, 0) * 35ms); }
+.gs-rail.expanded .gs-plbl { flex: 1 1 auto; opacity: 1; max-width: 140px; transform: none; transition-delay: calc(100ms + var(--i, 0) * 35ms); }
 .gs-pcnt {
   opacity: 0;
   max-width: 0;
@@ -3055,17 +3059,17 @@ header.top h1 { margin-right: auto; }
 .gs-foot-btn {
   width: 100%;
   height: 40px;
-  padding: 0 5px;
+  padding: 0;
   border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 0;
   color: var(--t2);
   text-align: left;
-  transition: background-color 180ms, color 180ms;
+  transition: background-color 180ms, color 180ms, gap 340ms cubic-bezier(.22, 1, .36, 1), padding 340ms cubic-bezier(.22, 1, .36, 1);
 }
-.gs-rail.expanded .gs-foot-btn { justify-content: flex-start; width: calc(100% - 12px); padding: 0 8px; }
+.gs-rail.expanded .gs-foot-btn { justify-content: flex-start; width: calc(100% - 12px); padding: 0 8px; gap: 10px; }
 .gs-foot-btn:hover { background: rgba(255, 255, 255, .07); color: #fff; }
 .gs-avatar {
   width: 30px;
