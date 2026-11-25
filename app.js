@@ -662,9 +662,14 @@ function renderMain() {
   glassyRail = mountGlassySidebar({
     getData: () => data,
     getTab: () => tab,
-    switchTab, openSpot, openSettings, openNote, openQuickTodo, openTimerSheet, openInvoiceList,
+    switchTab, openSpot, openSettings, openNote, openQuickTodo, openTimerSheet, openInvoiceList, openInvoice,
+    focusTodo: id => {
+      if (tab !== 'todos') switchTab('todos');
+      setTimeout(() => { const li = document.querySelector(`#screen .todo [data-toggle="${id}"]`)?.closest('.todo'); if (!li) return; li.scrollIntoView({ block: 'center', behavior: reduced() ? 'auto' : 'smooth' }); li.classList.add('flash'); setTimeout(() => li.classList.remove('flash'), 1600); }, 420);
+    },
     selectBrainTopic: tid => { brainSelect = { topicId: tid }; switchTab('brain'); },
-    ic, esc, buzz, reduced, getTheme, getPrism,
+    selectBrainSection: (tid, sid) => { brainSelect = { topicId: tid, sectionId: sid }; switchTab('brain'); },
+    noteTitle, money, ic, esc, buzz, reduced, getTheme, getPrism,
   });
   renderTab();
   if (pending) setTimeout(runPending, 450);
